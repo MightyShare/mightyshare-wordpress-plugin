@@ -44,6 +44,10 @@ To install this plugin:
 
 The image generation process is performed on our servers. This is done by the plugin creating a unique signed URL that allows your API Key to generate a social share image on our server. The URL is then put in your head tag to be used as an og:image. If you have Yoast SEO or RankMath installed the plugin will automatically write their og:images if enabled. Otherwise the plugin will create an og:image meta tag with your unique URL. [Read our Privacy Policy](https://mightyshare.io/privacy-policy/)
 
+=When is an image rendered?=
+
+The MightyShare plugin places a signed MightShare image URL onto your meta tags. Images aren't rendered until that URL is visited (either by a user or crawler). Typically you'll see a 5-10 second delay in a social preview image loading when it's first shared.
+
 == Screenshots ==
 
 == Changelog ==
