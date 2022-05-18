@@ -35,3 +35,28 @@ jQuery(function($) {
 		return false;
 	});
 });
+
+function toggleApiKeyFieldMask(field) {
+	const selectedField = document.querySelector(field);
+	selectedField.type = this.event.target.checked ? "text" : "password";
+}
+function renderMightyShareTemplatePreview(){
+	const result = document.querySelector(".mightyshare-image-preview");
+	const templateSelected = document.querySelector(".default_template_field").value;
+	if( templateSelected != "screenshot-self" ){
+		result.innerHTML = `<img src="https://api.mightyshare.io/template/preview/${templateSelected}.png">`;
+	}else{
+		result.innerHTML = ``;
+	}
+}
+
+const selectElement = document.querySelector(".default_template_field");
+selectElement.addEventListener("change", (event) => {
+	renderMightyShareTemplatePreview();
+}); document.addEventListener("DOMContentLoaded",renderMightyShareTemplatePreview);
+
+jQuery(document).ready(function(){
+	jQuery(function() {
+		jQuery('.default_primary_color_field').wpColorPicker();
+	});
+});

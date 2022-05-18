@@ -247,31 +247,6 @@ class Mightyshare_Plugin_Options {
 			</form>
 		</div>
 
-		<script>
-		jQuery(document).ready(function(){
-			jQuery(function() {
-				jQuery('.default_primary_color_field').wpColorPicker();
-			});
-		});
-
-		function toggleApiKeyFieldMask(field) {
-			const selectedField = document.querySelector(field);
-			selectedField.type = this.event.target.checked ? "text" : "password";
-		}
-		function renderMightyShareTemplatePreview(){
-			const result = document.querySelector(".mightyshare-image-preview");
-			const templateSelected = document.querySelector(".default_template_field").value;
-			if( templateSelected != "screenshot-self" ){
-				result.innerHTML = `<img src="https://api.mightyshare.io/template/preview/${templateSelected}.png">`;
-			}else{
-				result.innerHTML = ``;
-			}
-		}
-
-		const selectElement = document.querySelector(".default_template_field");
-		selectElement.addEventListener("change", (event) => {
-			renderMightyShareTemplatePreview();
-		}); document.addEventListener("DOMContentLoaded",renderMightyShareTemplatePreview);</script>
 		<style>#mightyshare-admin-header{display:flex;align-items:center;background:#2e66d2;margin:0 0 10px -20px;padding:0 20px 0 22px;overflow:hidden}#mightyshare-page-title{font-size:24px;color:#fff}#mightyshare-admin-header #mightyshare-admin-header-buttons{text-transform:uppercase;line-height:60px;height:60px;display:flex;flex-grow:1;justify-content:flex-end;align-items:center;margin:0 0 0 20px}#mightyshare-admin-header #mightyshare-admin-header-buttons a{padding:8px 10px;color:#fff;text-decoration:none;margin:0 0 0 10px;line-height:normal;font-size:13px;border-radius:3px}#mightyshare-admin-header #mightyshare-admin-header-buttons a.mightyshare-active,#mightyshare-admin-header #mightyshare-admin-header-buttons a:hover{background:rgba(0,0,0,.3)}#mightyshare-admin-header #mightyshare-admin-header-notice{float:right;color:#fff;line-height:60px}#mightyshare-admin-header #mightyshare-admin-header-notice a{color:#fff;font-weight:700}#mightyshare-settings-page .mightyshare-settings-section h2{font-weight:bold;font-size:18px;line-height:normal;margin:0;padding-bottom:15px;border-bottom:1px solid #e8eef1}@media all and (max-width:782px){#mightyshare-page-title{font-size:18px}}.mightyshare-image-preview img{margin-top:0.6em;max-width: 300px;max-height:200px;}#mightyshare-settings-page .notice {margin: 10px 0px;}
 		.mightyshare-toggler-wrapper{display:block;width:45px;height:25px;cursor:pointer;position:relative}.mightyshare-toggler-wrapper input[type=checkbox]{display:none}.mightyshare-toggler-wrapper input[type=checkbox]:checked+.toggler-slider{background-color:#2e66d2}.mightyshare-toggler-wrapper .toggler-slider{background-color:#ccc;position:absolute;border-radius:100px;top:0;left:0;width:100%;height:100%;-webkit-transition:all .18s ease;transition:all .18s ease}.mightyshare-toggler-wrapper .toggler-knob{position:absolute;-webkit-transition:all .18s ease;transition:all .18s ease;width:calc(25px - 6px);height:calc(25px - 6px);border-radius:50%;left:3px;top:3px;background-color:#fff}.mightyshare-toggler-wrapper input[type=checkbox]:checked+.toggler-slider .toggler-knob{left:calc(100% - 19px - 3px)}.postbox{border-color:#d1d6d9;border-radius:2px;}
 		</style>
@@ -311,7 +286,7 @@ class Mightyshare_Plugin_Options {
 
 		// Field output.
 		?>
-		<input type="<?php echo esc_attr( $field_type ); ?>" name="mightyshare[mightyshare_api_key]" class="regular-text	mightyshare_api_key_field" placeholder="<?php echo esc_attr( __( 'API KEY', 'mightyshare' ) ); ?>" id="mightyshare_api_key_field" value="<?php echo esc_attr( $value_api_key ); ?>"> <label><input type="checkbox" onclick="toggleApiKeyFieldMask('mightyshare_api_key_field')" <?php echo esc_attr( $checked ); ?>> <?php echo wp_kses_post( __( 'Display API Key', 'mightyshare' ) ); ?></label>
+		<input type="<?php echo esc_attr( $field_type ); ?>" name="mightyshare[mightyshare_api_key]" class="regular-text	mightyshare_api_key_field" placeholder="<?php echo esc_attr( __( 'API KEY', 'mightyshare' ) ); ?>" id="mightyshare_api_key_field" value="<?php echo esc_attr( $value_api_key ); ?>"> <label><input type="checkbox" onclick="toggleApiKeyFieldMask('.mightyshare_api_key_field')" <?php echo esc_attr( $checked ); ?>> <?php echo wp_kses_post( __( 'Display API Key', 'mightyshare' ) ); ?></label>
 		<p class="description"><?php echo wp_kses_post( __( 'Your MightyShare.io API Key. <br /><small>Dont\' have an API Key? <a href="https://mightyshare.io/register" rel="nofollow noopener" target="_blank">Get a free MightyShare API Key</a></small>', 'mightyshare' ) ); ?></p>
 		<?php
 	}
