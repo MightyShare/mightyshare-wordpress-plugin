@@ -121,7 +121,7 @@ if ( ! class_exists( 'Mightyshare_Meta_Boxes' ) ) {
 				return;
 			}
 
-			if ( ! isset( $_POST[ $this->metabox['id'] . '_wpnonce' ] ) || ! wp_verify_nonce( esc_url_raw( wp_unslash( $_POST[ $this->metabox['id'] . '_wpnonce' ] ) ), $this->metabox['id'] ) ) {
+			if ( ! isset( $_POST[ $this->metabox['id'] . '_wpnonce' ] ) || ! wp_verify_nonce( $_POST[ $this->metabox['id'] . '_wpnonce' ], $this->metabox['id'] ) ) {
 				return;
 			}
 
@@ -136,7 +136,7 @@ if ( ! class_exists( 'Mightyshare_Meta_Boxes' ) ) {
 			foreach ( $this->metabox['fields'] as $field ) :
 
 				$name  = $field['id'];
-				$value = ! empty( $_POST[ $name ] ) ? sanitize_mightyshare_field( esc_url_raw( wp_unslash( $_POST[ $name ] ) ), $field['type'] ) : '';
+				$value = ! empty( $_POST[ $name ] ) ? sanitize_mightyshare_field( $_POST[ $name ], $field['type'] ) : '';
 
 				update_post_meta( $post_id, $name, $value );
 
