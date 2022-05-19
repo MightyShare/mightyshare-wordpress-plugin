@@ -114,7 +114,7 @@ class Mightyshare_Plugin_Options {
 
 	public function setup_mightyshare_message() {
 		?>
-		<div class='mightyshare notice notice-success'><p><?php echo esc_html( sprintf( __( 'Thank you for installing <strong>MightyShare</strong> - Remember to head to the <a href="%s" title="MightyShare Settings">settings</a> to finish setting up.', 'mightyshare' ), menu_page_url( 'mightyshare', false ) ) ); ?></p></div>
+		<div class='mightyshare notice notice-success'><p><?php echo wp_kses_post( sprintf( __( 'Thank you for installing <strong>MightyShare</strong> - Remember to head to the <a href="%s" title="MightyShare Settings">settings</a> to finish setting up.', 'mightyshare' ), menu_page_url( 'mightyshare', false ) ) ); ?></p></div>
 		<?php
 	}
 
