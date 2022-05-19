@@ -5,7 +5,7 @@ Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
 Requires at least: 5.4
 Tested up to: 6.0
 Requires PHP: 7.0
-Stable tag: 1.0.5
+Stable tag: 1.0.6
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
@@ -51,6 +51,9 @@ The MightyShare plugin places a signed MightShare image URL onto your meta tags.
 == Screenshots ==
 
 == Changelog ==
+
+= 1.0.6 =
+* New template added (clean-3).
 
 = 1.0.5 =
 * Bug fix preventing posts from showing the correct MightyShare state.
