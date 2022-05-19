@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.0.3
+ * Version: 1.0.4
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,11 +13,11 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.0.3' );
+define( 'MIGHTYSHARE_VERSION', '1.0.4' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
-add_action( 'after_setup_theme', function() {
+add_action( 'init', function() {
 	$mightyshare_metaboxes = apply_filters( 'mightyshare_register_metaboxes', array() );
 
 	if ( $mightyshare_metaboxes && is_array( $mightyshare_metaboxes ) ) {
@@ -76,17 +76,12 @@ class Mightyshare_Plugin_Options {
 				$post_template_options[ $key ] = $value;
 			}
 
-			$post_types = get_post_types( array( 'public' => true ), 'objects', 'and' );
-			$metabox_post_types = array();
-
-			foreach ( $post_types as $key => $value ) {
-				$metabox_post_types[] = $key;
-			}
+			$post_types = get_post_types( array( 'public' => true ), 'names' );
 
 			$metaboxes[] = array(
 				'id'        => 'mightyshare',
 				'name'      => 'MightyShare Options',
-				'post_type' => $metabox_post_types,
+				'post_type' => $post_types,
 				'fields'    => array(
 					array(
 						'id'          => 'mightyshare_enabled',
@@ -751,9 +746,11 @@ class Mightyshare_Globals {
 			'standard-3'      => 'standard-3',
 			'mighty-1'        => 'mighty-1',
 			'mighty-2'        => 'mighty-2',
+			'mighty-3'        => 'mighty-3',
 			'basic-1'         => 'basic-1',
 			'basic-2'         => 'basic-2',
 			'clean-1'         => 'clean-1',
+			'clean-2'        	=> 'clean-2',
 			'business-1'      => 'business-1',
 			'screenshot-self' => 'Use a screenshot of the current page',
 		);

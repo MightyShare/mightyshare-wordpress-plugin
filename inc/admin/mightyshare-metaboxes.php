@@ -147,13 +147,13 @@ function render_mightyshare_image_field( $param, $value = '', $prefix = '' ) {
 	}
 	if ( $value && $image_attributes ) {
 		$image_class       = '';
-		$image_button_text = '<img src="' . $image_attributes[0] . '" style="max-width:200px;height:auto;display:block;" />';
+		$image_button_text = '<img src="' . $image_attributes[0] . '" style="max-width:200px;max-height:200pxheight:auto;display:block;" />';
 		$display           = 'inline-block';
 	}
 
 	?>
 	<div>
-		<a href="javascript:void(0)" class="mightyshare-upload-img-button<?php echo esc_attr( $image_class ); ?>"><?php echo esc_attr( $image_button_text ); ?></a><br />
+		<a href="javascript:void(0)" class="mightyshare-upload-img-button<?php echo esc_attr( $image_class ); ?>"><?php echo wp_kses_post( $image_button_text ); ?></a><br />
 		<input type="hidden" name="<?php echo esc_attr( $name ); ?>" id="<?php echo esc_attr( $prefix . $param['id'] ); ?>" value="<?php echo esc_attr( $value ); ?>" />
 		<a href="javascript:void(0)" class="mightyshare-remove-img-button" style="display:inline-block;display:<?php echo esc_attr( $display ); ?>"><?php echo esc_attr( __( 'Remove image', 'mightyshare' ) ); ?></a>
 	</div>
