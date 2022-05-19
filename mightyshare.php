@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.0.2
+ * Version: 1.0.3
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.0.2' );
+define( 'MIGHTYSHARE_VERSION', '1.0.3' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
@@ -407,6 +407,14 @@ class Mightyshare_Plugin_Options {
 			?>
 			RankMath
 			<?php
+		} elseif ( in_array( 'all-in-one-seo-pack/all_in_one_seo_pack.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+			?>
+			All in One SEO
+			<?php
+		} elseif ( in_array( 'autodescription/autodescription.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+			?>
+			The SEO Framework
+			<?php
 		} else {
 			?>
 			None
@@ -432,7 +440,7 @@ class Mightyshare_Plugin_Options {
 			$value
 		);
 		?>
-		<p class="description"><?php echo wp_kses_post( __( 'Check this to have MightyShare output the og:image meta tag. <br /><small>Enable this if you aren\'t using Yoast SEO or RankMath.</small>', 'mightyshare' ) ); ?></p>
+		<p class="description"><?php echo wp_kses_post( __( 'Check this to have MightyShare output the og:image meta tag. <br /><small>Enable this if you aren\'t using an SEO plugin.</small>', 'mightyshare' ) ); ?></p>
 		<?php
 	}
 
@@ -495,13 +503,20 @@ class Mightyshare_Frontend {
 	// Replace OG image if using an SEO plugin.
 	public function mightyshare_opengraph_meta_tags() {
 		if ( in_array( 'wordpress-seo/wp-seo.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) || in_array( 'wordpress-seo-premium/wp-seo-premium.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
-			// Using Yoast SEO
+			// Using Yoast SEO.
 			add_filter( 'wpseo_opengraph_image', array( $this, 'mightyshare_overwrite_yoast_opengraph_url' ) );
 			add_filter( 'wpseo_twitter_image', array( $this, 'mightyshare_overwrite_yoast_opengraph_url' ) );
 		} elseif ( in_array( 'seo-by-rank-math/rank-math.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
-			// Using Rank Math
+			// Using Rank Math.
 			add_filter( 'rank_math/opengraph/facebook/image', array( $this, 'mightyshare_overwrite_rankmath_opengraph_url' ) );
 			add_filter( 'rank_math/opengraph/twitter/image', array( $this, 'mightyshare_overwrite_rankmath_opengraph_url' ) );
+		} elseif ( in_array( 'all-in-one-seo-pack/all_in_one_seo_pack.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+			// Using All in One SEO.
+			add_filter( 'aioseo_facebook_tags', array( $this, 'mightyshare_overwrite_all_in_one_seo_facebook_opengraph_url' ) );
+			add_filter( 'aioseo_twitter_tags', array( $this, 'mightyshare_overwrite_all_in_one_seo_twitter_opengraph_url' ) );
+		} elseif ( in_array( 'autodescription/autodescription.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+			// Using The SEO Framework.
+			add_filter( 'the_seo_framework_image_details', array( $this, 'mightyshare_overwrite_the_seo_framework_opengraph_url' ) );
 		} else {
 			// No plugin manually add og:image meta.
 			$options = get_option( 'mightyshare' );
@@ -534,6 +549,45 @@ class Mightyshare_Frontend {
 		}
 
 		return $attachment_url;
+	}
+
+	// Using All in One SEO.
+	public function mightyshare_overwrite_all_in_one_seo_facebook_opengraph_url( $facebookMeta ) {
+		$mightyshare_frontend = new Mightyshare_Frontend();
+		$template_parts       = $mightyshare_frontend->get_mightyshare_post_details();
+
+		if ( $template_parts['is_enabled'] ) {
+			$facebookMeta['og:image'] = $this->mightyshare_generate_og_image();
+			$facebookMeta['og:image:secure_url'] = $this->mightyshare_generate_og_image();
+		}
+
+		return $facebookMeta;
+	}
+
+	public function mightyshare_overwrite_all_in_one_seo_twitter_opengraph_url( $twitterMeta ) {
+		$mightyshare_frontend = new Mightyshare_Frontend();
+		$template_parts       = $mightyshare_frontend->get_mightyshare_post_details();
+
+		if ( $template_parts['is_enabled'] ) {
+			$twitterMeta['twitter:image'] = $this->mightyshare_generate_og_image();
+		}
+
+		return $twitterMeta;
+	}
+
+	// Using The SEO Framework.
+	public function mightyshare_overwrite_the_seo_framework_opengraph_url( $image ) {
+		$mightyshare_frontend = new Mightyshare_Frontend();
+		$template_parts       = $mightyshare_frontend->get_mightyshare_post_details();
+
+		if ( $template_parts['is_enabled'] ) {
+			$image[0]['height'] = '';
+			$image[0]['width'] = '';
+			$image[0]['alt'] = '';
+			$image[0]['url'] = $this->mightyshare_generate_og_image();
+		}
+
+		return $image;
 	}
 
 	// No SEO plugin so render tags.
@@ -694,10 +748,12 @@ class Mightyshare_Globals {
 		$theme_options = array(
 			'standard-1'      => 'standard-1',
 			'standard-2'      => 'standard-2',
+			'standard-3'      => 'standard-3',
 			'mighty-1'        => 'mighty-1',
 			'mighty-2'        => 'mighty-2',
 			'basic-1'         => 'basic-1',
 			'basic-2'         => 'basic-2',
+			'clean-1'         => 'clean-1',
 			'business-1'      => 'business-1',
 			'screenshot-self' => 'Use a screenshot of the current page',
 		);
@@ -705,23 +761,3 @@ class Mightyshare_Globals {
 		return $theme_options;
 	}
 }
-
-// Example how to overwrite variables in MightyShare.
-
-/*
-Function mightyshare_filter_post_example( $post ) {
-		//Overwrite the page's template used
-		$post['template'] = 'mighty-2';
-
-		//Overwrite the page's title used to render
-		$post['title'] = 'My new title!';
-
-		//Overwrite the page's background used to render
-		$post['background'] = 'https://your-image-url.jpg';
-
-		//Force the plugin to return a MightyShare image
-		$post['is_enabled'] = false;
-		return $post;
-}
-add_filter( 'mightyshare_filter_post', 'mightyshare_filter_post_example', 10, 3 );
-*/

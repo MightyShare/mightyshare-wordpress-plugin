@@ -5,7 +5,7 @@ Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
 Requires at least: 5.4
 Tested up to: 6.0
 Requires PHP: 7.0
-Stable tag: 1.0.2
+Stable tag: 1.0.3
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
@@ -25,7 +25,7 @@ MightyShare sends your post's title, featured image, and post meta data to [our 
 * Automatically Generate Social Share Images for Posts and Pages!
 * Robust Customization
 * Adds Open Graph Meta Tags if You Don't Have an SEO Plugin
-* SEO Plugin Compatibility: Yoast SEO and RankMath
+* SEO Plugin Compatibility: Yoast SEO, RankMath, All in One SEO, and The SEO Framework.
 * Multiple Templates to Choose From
 
 == Installation ==
@@ -51,6 +51,10 @@ The MightyShare plugin places a signed MightShare image URL onto your meta tags.
 == Screenshots ==
 
 == Changelog ==
+
+= 1.0.3 =
+* Added compatibility with All in One SEO Pack and The SEO Framework.
+* 2 new template added (standard-3 and clean-1).
 
 = 1.0.2 =
 * PHP bug fix.
