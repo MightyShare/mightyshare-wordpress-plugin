@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.0.4
+ * Version: 1.0.5
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.0.4' );
+define( 'MIGHTYSHARE_VERSION', '1.0.5' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
@@ -60,7 +60,7 @@ class Mightyshare_Plugin_Options {
 			if ( ! empty( $options ) ) {
 				$default_enabled = ' (Disabled)';
 				if ( isset( $_GET['post'] ) ) {
-					$current_post_id = esc_url_raw( wp_unslash( $_GET['post'] ) );
+					$current_post_id =  esc_attr( wp_unslash( $_GET['post'] ) );
 					if ( ! empty( $current_post_id ) && $options['enabled_on']['post_types'] && get_post_type( $current_post_id ) && in_array( get_post_type( $current_post_id ), $options['enabled_on']['post_types'], true ) ) {
 						$default_enabled = ' (Enabled)';
 					}
