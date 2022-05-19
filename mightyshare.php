@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.0.1
+ * Version: 1.0.2
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.0.1' );
+define( 'MIGHTYSHARE_VERSION', '1.0.2' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
@@ -202,6 +202,14 @@ class Mightyshare_Plugin_Options {
 		);
 
 		add_settings_field(
+			'detected_seo_plugin',
+			__( 'Detected SEO Plugin', 'mightyshare' ),
+			array( $this, 'render_detected_seo_plugin_field' ),
+			'mightyshare',
+			'display'
+		);
+
+		add_settings_field(
 			'opengraph',
 			__( 'Enable Open Graph', 'mightyshare' ),
 			array( $this, 'render_opengraph_field' ),
@@ -280,14 +288,14 @@ class Mightyshare_Plugin_Options {
 		$options = get_option( 'mightyshare' );
 
 		// Set default values.
-		$value_api_key = isset( $options['mightyshare_api_key'] ) ? $options['mightyshare_api_key'] : '';
+		$value_api_key  = isset( $options['mightyshare_api_key'] ) ? $options['mightyshare_api_key'] : '';
 		$field_type     = isset( $options['mightyshare_api_key'] ) ? 'password' : 'text';
-		$checked       = isset( $options['mightyshare_api_key'] ) ? '' : 'checked';
+		$checked        = isset( $options['mightyshare_api_key'] ) ? '' : 'checked';
 
 		// Field output.
 		?>
 		<input type="<?php echo esc_attr( $field_type ); ?>" name="mightyshare[mightyshare_api_key]" class="regular-text	mightyshare_api_key_field" placeholder="<?php echo esc_attr( __( 'API KEY', 'mightyshare' ) ); ?>" id="mightyshare_api_key_field" value="<?php echo esc_attr( $value_api_key ); ?>"> <label><input type="checkbox" onclick="toggleApiKeyFieldMask('.mightyshare_api_key_field')" <?php echo esc_attr( $checked ); ?>> <?php echo wp_kses_post( __( 'Display API Key', 'mightyshare' ) ); ?></label>
-		<p class="description"><?php echo wp_kses_post( __( 'Your MightyShare.io API Key. <br /><small>Dont\'t have an API Key? <a href="https://mightyshare.io/register" rel="nofollow noopener" target="_blank">Get a free MightyShare API Key</a></small>', 'mightyshare' ) ); ?></p>
+		<p class="description"><?php echo wp_kses_post( __( 'Your MightyShare.io API Key. <br /><small>Don\'t have an API Key? <a href="https://mightyshare.io/register" rel="nofollow noopener" target="_blank">Get a free MightyShare API Key</a></small>', 'mightyshare' ) ); ?></p>
 		<?php
 	}
 
@@ -390,6 +398,22 @@ class Mightyshare_Plugin_Options {
 		<?php
 	}
 
+	public function render_detected_seo_plugin_field() {
+		if ( in_array( 'wordpress-seo/wp-seo.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) || in_array( 'wordpress-seo-premium/wp-seo-premium.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+			?>
+			Yoast SEO
+			<?php
+		} elseif ( in_array( 'seo-by-rank-math/rank-math.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+			?>
+			RankMath
+			<?php
+		} else {
+			?>
+			None
+			<?php
+		}
+	}
+
 	public function render_opengraph_field() {
 		// Retrieve data from the database.
 		$options = get_option( 'mightyshare' );
@@ -398,7 +422,7 @@ class Mightyshare_Plugin_Options {
 		if ( empty( $options ) ) {
 			$value = 'no';
 		} else {
-			$value = ( 'on' === $options['output_opengraph'] ) ? 'yes' : '';
+			$value = ( ! empty( $options['output_opengraph'] ) && 'on' === $options['output_opengraph'] ) ? 'yes' : '';
 		}
 		// Field output.
 		render_mightyshare_checkbox_field(
