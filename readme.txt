@@ -1,11 +1,11 @@
-=== MightyShare ===
+=== MightyShare - Auto-Generated Social Media Images ===
 Contributors: someguy9
 Donate link: https://www.buymeacoffee.com/someguy
 Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
 Requires at least: 5.4
 Tested up to: 6.0
 Requires PHP: 7.0
-Stable tag: 1.0.6
+Stable tag: 1.0.7
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
@@ -13,7 +13,7 @@ Automatically generate social share preview images with MightyShare!
 
 == Description ==
 
-Automatically generate social share preview images with [MightyShare](https://mightyshare.io/)! MightyShare takes your post title and featured image to generate a beautiful share image for your content. Compatible with posts, pages, archive pages, and custom post types your social shares will look stunning in no time.
+Automatically generate social share preview images with [MightyShare](https://mightyshare.io/)! MightyShare takes your post title and featured image to generate a beautiful share image for your content. Compatible with posts, pages, and custom post types your social shares will look stunning in no time.
 
 **How Does it Work?**
 
@@ -51,6 +51,10 @@ The MightyShare plugin places a signed MightShare image URL onto your meta tags.
 == Screenshots ==
 
 == Changelog ==
+
+= 1.0.7 =
+* 3 New templates added (8bit-1, bold-1 and bold-2).
+* Bug fixes causing MightyShare not to display.
 
 = 1.0.6 =
 * New template added (clean-3).

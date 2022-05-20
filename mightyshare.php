@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.0.6
+ * Version: 1.0.7
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.0.6' );
+define( 'MIGHTYSHARE_VERSION', '1.0.7' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
@@ -372,7 +372,7 @@ class Mightyshare_Plugin_Options {
 
 		// Field output.
 		?>
-			<input type="text" name="mightyshare[default_primary_color]" class="default_primary_color_field" id="default_primary_color_field" value="<?php echo esc_attr( $value ); ?>">
+			<input type="text" name="mightyshare[default_primary_color]" class="mightyshare_color_field" id="default_primary_color_field" value="<?php echo esc_attr( $value ); ?>">
 			<p class="description"><?php echo esc_html( __( 'Primary color used in templates (typically the border color)', 'mightyshare' ) ); ?></p>
 		<?php
 	}
@@ -435,7 +435,7 @@ class Mightyshare_Plugin_Options {
 			$value
 		);
 		?>
-		<p class="description"><?php echo wp_kses_post( __( 'Check this to have MightyShare output the og:image meta tag. <br /><small>Enable this if you aren\'t using an SEO plugin.</small>', 'mightyshare' ) ); ?></p>
+		<p class="description"><?php echo wp_kses_post( __( 'Check this to have MightyShare output the og:image meta tag. <br /><small>Recommended if you aren\'t using an SEO plugin.</small>', 'mightyshare' ) ); ?></p>
 		<?php
 	}
 
@@ -686,24 +686,24 @@ class Mightyshare_Frontend {
 		$returned_template_parts = array();
 
 		//Defaults.
-		$returned_template_parts['is_enabled'] = true;
+		$returned_template_parts['is_enabled'] = false;
+		$returned_template_parts['template']   = $options['default_template'];
 
 		if ( $wp_query->is_singular ) {
 			$returned_template_parts['ID']    = $template_parts->ID;
 			$returned_template_parts['title'] = $template_parts->post_title;
+			$returned_template_parts['type']  = 'post';
 		}
 
 		if ( $wp_query->is_archive ) {
-			$returned_template_parts['ID']    = $template_parts->term_id;
-			$returned_template_parts['title'] = $template_parts->name;
-			$returned_template_parts['type']  = 'taxonomy';
+			$returned_template_parts['ID']         = $template_parts->term_id;
+			$returned_template_parts['title']      = $template_parts->name;
+			$returned_template_parts['type']       = 'taxonomy';
 		}
 
-		if ( ! empty( $returned_template_parts['ID'] ) && $returned_template_parts['ID'] ) {
+		if ( ! empty( $returned_template_parts['ID'] ) && $returned_template_parts['ID'] && ! empty( $returned_template_parts['type'] ) && 'post' === $returned_template_parts['type'] ) {
 
 			// Template variables.
-			$returned_template_parts['template'] = $options['default_template'];
-
 			if ( $options['enabled_on']['post_types'] && get_post_type( $returned_template_parts['ID'] ) && in_array( get_post_type( $returned_template_parts['ID'] ), $options['enabled_on']['post_types'], true ) ) {
 				$returned_template_parts['is_enabled'] = true;
 			} else {
@@ -752,7 +752,10 @@ class Mightyshare_Globals {
 			'clean-1'         => 'clean-1',
 			'clean-2'        	=> 'clean-2',
 			'clean-3'        	=> 'clean-3',
+			'bold-1'        	=> 'bold-1',
+			'bold-2'        	=> 'bold-2',
 			'business-1'      => 'business-1',
+			'8bit-1'        	=> '8bit-1',
 			'screenshot-self' => 'Use a screenshot of the current page',
 		);
 

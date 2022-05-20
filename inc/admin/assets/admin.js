@@ -57,6 +57,6 @@ selectElement.addEventListener("change", (event) => {
 
 jQuery(document).ready(function(){
 	jQuery(function() {
-		jQuery('.default_primary_color_field').wpColorPicker();
+		jQuery('.mightyshare_color_field').wpColorPicker();
 	});
 });
