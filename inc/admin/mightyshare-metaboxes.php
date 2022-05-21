@@ -121,11 +121,17 @@ function render_mightyshare_checkbox_field( $param, $value = '', $prefix = '' ) 
 	$value = ( 'yes' === $value || ( ! $value && isset( $param['default'] ) && 'yes' === $param['default'] ) ) ? 'yes' : 'no';
 	$label = ! empty( $param['short_description'] ) ? $param['short_description'] : '';
 	?>
-	<input type="checkbox" id="<?php echo esc_attr( $prefix . $param['id'] ); ?>" name="<?php echo esc_attr( $param['id'] ); ?>" <?php echo esc_attr( checked( 'yes', $value, false ) ); ?> />
+	<input type="checkbox"
+		id="<?php echo esc_attr( $prefix . $param['id'] ); ?>"
+		name="<?php echo esc_attr( $param['id'] ); ?>"
+		<?php if ( ! empty( $param['set_value'] ) ) { ?>
+			value="<?php echo esc_attr( $param['set_value'] ); ?>"
+		<?php }; ?>
+		<?php echo checked( 'yes', $value, false ); ?> />
 	<?php
 	if ( ! empty( $param['label'] ) ) {
 		?>
-		<label for="<?php echo esc_attr( $prefix .$param['id'] ); ?>"> <?php echo esc_attr( $label ); ?></label>
+		<label for="<?php echo esc_attr( $prefix . $param['id'] ); ?>" class="mightyshare-label checkbox"> <?php echo esc_attr( $label ); ?></label>
 		<?php
 	}
 }

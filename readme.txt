@@ -5,7 +5,7 @@ Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
 Requires at least: 5.4
 Tested up to: 6.0
 Requires PHP: 7.0
-Stable tag: 1.0.7
+Stable tag: 1.0.8
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
@@ -13,20 +13,24 @@ Automatically generate social share preview images with MightyShare!
 
 == Description ==
 
-Automatically generate social share preview images with [MightyShare](https://mightyshare.io/)! MightyShare takes your post title and featured image to generate a beautiful share image for your content. Compatible with posts, pages, and custom post types your social shares will look stunning in no time.
+Automatically generate social share preview images with [MightyShare](https://mightyshare.io/)! MightyShare takes your post title and featured image to generate a beautiful share image for your content. Compatible with posts, pages, and custom post types your social shares will look stunning in no time. Customize templates with your brand colors, logo, and more.
+
+To use the plugin you'll need to [create a free MightyShare account](https://mightyshare.io/register/).
 
 **How Does it Work?**
 
-MightyShare sends your post's title, featured image, and post meta data to [our server](https://mightyshare.io/) to generate a social share image on the fly.
+MightyShare sends your post's title, featured image, and post meta data to [our server](https://mightyshare.io/) to generate a social share image on the fly using your API Key.
 
 
 **Features**
 
-* Automatically Generate Social Share Images for Posts and Pages!
-* Robust Customization
-* Adds Open Graph Meta Tags if You Don't Have an SEO Plugin
-* SEO Plugin Compatibility: Yoast SEO, RankMath, All in One SEO, and The SEO Framework.
-* Multiple Templates to Choose From
+* Automatically generate social share images for posts and pages!
+* Robust customization.
+* Adds open graph meta tags if you don’t have an SEO plugin.
+* SEO plugin compatibility: Yoast SEO, RankMath, All in One SEO, and The SEO Framework.
+* Multiple image templates to choose from.
+* New templates monthly!
+* Developer hooks for creating just about anything!
 
 == Installation ==
 
@@ -40,17 +44,29 @@ To install this plugin:
 
 == Frequently Asked Questions ==
 
-=How does image generate work?=
+=Is MightyShare free?=
+
+Yes! You can use MightyShare for free using our free account allowing you 50 renders a month. [Paid plans](https://mightyshare.io/pricing/) start at $5 that allow you to generate hundreds of social images.
+
+=How does image generation work?=
 
 The image generation process is performed on our servers. This is done by the plugin creating a unique signed URL that allows your API Key to generate a social share image on our server. The URL is then put in your head tag to be used as an og:image. If you have Yoast SEO or RankMath installed the plugin will automatically write their og:images if enabled. Otherwise the plugin will create an og:image meta tag with your unique URL. [Read our Privacy Policy](https://mightyshare.io/privacy-policy/)
 
 =When is an image rendered?=
 
-The MightyShare plugin places a signed MightShare image URL onto your meta tags. Images aren't rendered until that URL is visited (either by a user or crawler). Typically you'll see a 5-10 second delay in a social preview image loading when it's first shared.
+The MightyShare plugin places a signed MightShare image URL onto your meta tags. Images aren't rendered until that URL is visited (either by a user or crawler). Typically you'll see a 5 second delay in a social preview image loading when it's first shared.
+
+=Why aren't my images showing up?=
+
+If you are using an SEO plugin be sure to have a default image set for the type of content you want MightyShare to show on. For example in Yoast SEO you need to go to the Facebook section and set a default Open Graph image, this allows MightyShare to run filtering those meta tags. Additionally make sure you've cleared any caching mechanisms you may have. Still having issues? [Contact Us](https://mightyshare.io/contact/).
 
 == Screenshots ==
 
 == Changelog ==
+
+= 1.0.8 =
+* Added ability to enable MightyShare on taxonomies (archive pages)!
+* Code bug fixes.
 
 = 1.0.7 =
 * 3 New templates added (8bit-1, bold-1 and bold-2).
