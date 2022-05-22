@@ -5,7 +5,7 @@ Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
 Requires at least: 5.4
 Tested up to: 6.0
 Requires PHP: 7.0
-Stable tag: 1.0.8
+Stable tag: 1.1.0
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
@@ -63,6 +63,13 @@ If you are using an SEO plugin be sure to have a default image set for the type 
 == Screenshots ==
 
 == Changelog ==
+
+= 1.1.0 =
+* New feature that allows you to overwrite template options by post type.
+* Added option to provide a fallback image.
+* New option to overwrite post titles that is used for the MightyShare renders.
+* Grey color added to background of logo field so you can see white logos.
+* Plenty of bug fixes.
 
 = 1.0.8 =
 * Added ability to enable MightyShare on taxonomies (archive pages)!

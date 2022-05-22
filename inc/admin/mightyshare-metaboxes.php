@@ -116,14 +116,33 @@ function render_mightyshare_select_field( $param, $value = '', $prefix = '' ) {
 	<?php
 }
 
+function render_mightyshare_text_field( $param, $value = '', $prefix = '' ) {
+
+	$value = $value ? $value : ( isset( $param['default'] ) ? $param['default'] : '' );
+
+	?>
+	<input type="text" value="<?php echo esc_attr( $value ); ?>" id="<?php echo esc_attr( $prefix . $param['id'] ); ?>" name="<?php echo esc_attr( $param['id'] ); ?>" class="<?php echo esc_attr( ( ! empty( $param['classes'] ) ? ' ' . $param['classes'] : '' ) ); ?>" value="<?php echo esc_attr( $value ); ?>">
+	<?php
+}
+
+function render_mightyshare_color_field( $param, $value = '', $prefix = '' ) {
+
+	$value = $value ? $value : ( isset( $param['default'] ) ? $param['default'] : '' );
+
+	?>
+	<input type="text" value="<?php echo esc_attr( $value ); ?>" id="<?php echo esc_attr( $prefix . $param['id'] ); ?>" name="<?php echo esc_attr( $param['id'] ); ?>" class="mightyshare_color_field<?php echo esc_attr( ( ! empty( $param['classes'] ) ? ' ' . $param['classes'] : '' ) ); ?>" value="<?php echo esc_attr( $value ); ?>">
+	<?php
+}
+
 function render_mightyshare_checkbox_field( $param, $value = '', $prefix = '' ) {
 
 	$value = ( 'yes' === $value || ( ! $value && isset( $param['default'] ) && 'yes' === $param['default'] ) ) ? 'yes' : 'no';
 	$label = ! empty( $param['short_description'] ) ? $param['short_description'] : '';
+	$id = ! empty( $param['id'] ) ? $param['id'] : uniqid();
 	?>
 	<input type="checkbox"
-		id="<?php echo esc_attr( $prefix . $param['id'] ); ?>"
-		name="<?php echo esc_attr( $param['id'] ); ?>"
+		id="<?php echo esc_attr( $prefix . $id ); ?>"
+		name="<?php echo ! empty( $param['name'] ) ? esc_attr( $param['name'] ) : esc_attr( $param['id'] ); ?>"
 		<?php if ( ! empty( $param['set_value'] ) ) { ?>
 			value="<?php echo esc_attr( $param['set_value'] ); ?>"
 		<?php }; ?>
@@ -131,7 +150,7 @@ function render_mightyshare_checkbox_field( $param, $value = '', $prefix = '' ) 
 	<?php
 	if ( ! empty( $param['label'] ) ) {
 		?>
-		<label for="<?php echo esc_attr( $prefix . $param['id'] ); ?>" class="mightyshare-label checkbox"> <?php echo esc_attr( $label ); ?></label>
+		<label for="<?php echo esc_attr( $prefix . $id ); ?>" class="mightyshare-label checkbox"> <?php echo esc_attr( $label ); ?></label>
 		<?php
 	}
 }

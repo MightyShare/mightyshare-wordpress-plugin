@@ -40,20 +40,27 @@ function toggleApiKeyFieldMask(field) {
 	const selectedField = document.querySelector(field);
 	selectedField.type = this.event.target.checked ? "text" : "password";
 }
-function renderMightyShareTemplatePreview(){
-	const result = document.querySelector(".mightyshare-image-preview");
-	const templateSelected = document.querySelector(".default_template_field").value;
-	if( templateSelected != "screenshot-self" ){
+function renderMightyShareTemplatePreview(event){
+	const result = event.closest("td").querySelector(".mightyshare-image-preview");
+	const templateSelected = event.value;
+	if( templateSelected && templateSelected != "screenshot-self" ){
 		result.innerHTML = `<img src="https://api.mightyshare.io/template/preview/${templateSelected}.png">`;
 	}else{
 		result.innerHTML = ``;
 	}
 }
 
-const selectElement = document.querySelector(".default_template_field");
-selectElement.addEventListener("change", (event) => {
-	renderMightyShareTemplatePreview();
-}); document.addEventListener("DOMContentLoaded",renderMightyShareTemplatePreview);
+document.querySelectorAll(".mightyshare_template_field").forEach(item => {
+  item.addEventListener('change', event => {
+		renderMightyShareTemplatePreview(event.target);
+	})
+});
+
+document.addEventListener("DOMContentLoaded", event => {
+	document.querySelectorAll(".mightyshare_template_field").forEach(item => {
+		renderMightyShareTemplatePreview(item);
+	})
+});
 
 jQuery(document).ready(function(){
 	jQuery(function() {
