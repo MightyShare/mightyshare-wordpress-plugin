@@ -5,7 +5,7 @@ Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
 Requires at least: 5.4
 Tested up to: 6.0
 Requires PHP: 7.0
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
@@ -13,7 +13,7 @@ Automatically generate social share preview images with MightyShare!
 
 == Description ==
 
-Automatically generate social share preview images with [MightyShare](https://mightyshare.io/)! MightyShare takes your post title and featured image to generate a beautiful share image for your content. Compatible with posts, pages, and custom post types your social shares will look stunning in no time. Customize templates with your brand colors, logo, and more.
+Automatically generate social share preview images with [MightyShare](https://mightyshare.io/)! MightyShare takes your post title and featured image to generate a beautiful share image for your content. Compatible with posts, pages, and custom post types your social shares will look stunning in no time. Customize [templates](https://mightyshare.io/templates/) with your brand colors, logo, and more.
 
 To use the plugin you'll need to [create a free MightyShare account](https://mightyshare.io/register/).
 
@@ -28,7 +28,7 @@ MightyShare sends your post's title, featured image, and post meta data to [our 
 * Robust customization.
 * Adds open graph meta tags if you don’t have an SEO plugin.
 * SEO plugin compatibility: Yoast SEO, RankMath, All in One SEO, and The SEO Framework.
-* Multiple image templates to choose from.
+* Multiple image [templates](https://mightyshare.io/templates/) to choose from.
 * New templates monthly!
 * Developer hooks for creating just about anything!
 
@@ -63,6 +63,11 @@ If you are using an SEO plugin be sure to have a default image set for the type 
 == Screenshots ==
 
 == Changelog ==
+
+= 1.1.1 =
+* New template browser to easily select a template.
+* New API Key details when entered in the MightyShare settings.
+* New template (float-1).
 
 = 1.1.0 =
 * New feature that allows you to overwrite template options by post type.

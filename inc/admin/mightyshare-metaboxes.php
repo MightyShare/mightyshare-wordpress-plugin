@@ -92,14 +92,15 @@ function sanitize_mightyshare_field( $value, $type ) {
 
 function render_mightyshare_select_field( $param, $value = '', $prefix = '' ) {
 
-	$value = $value ? $value : ( isset( $param['default'] ) ? $param['default'] : '' );
+	$value        = $value ? $value : ( isset( $param['default'] ) ? $param['default'] : '' );
+	$printable_id = ( isset( $param['id'] ) ? str_replace( ']', '', str_replace( '[', '_', $param['id'] ) ) : '' );
 
 	?>
-	<select id="<?php echo esc_attr( $prefix . $param['id'] ); ?>" name="<?php echo esc_attr( $param['id'] ); ?>" class="<?php echo esc_attr( ( ! empty( $param['classes'] ) ? $param['classes'] : '' ) ); ?>">
+	<select id="<?php echo esc_attr( $prefix . $printable_id ); ?>" name="<?php echo esc_attr( $param['id'] ); ?>" class="<?php echo esc_attr( ( ! empty( $param['classes'] ) ? $param['classes'] : '' ) ); ?>">
 	<?php
 	if ( isset( $param['placeholder'] ) ) {
 		?>
-		<option value=""><?php echo esc_html( $param['placeholder'] ); ?></option>';
+		<option value=""><?php echo esc_html( $param['placeholder'] ); ?></option>
 		<?php
 	}
 
@@ -107,13 +108,19 @@ function render_mightyshare_select_field( $param, $value = '', $prefix = '' ) {
 		foreach ( $param['options'] as $v => $l ) {
 			$selected = $v === $value ? ' selected="selected"' : '';
 			?>
-			<option value="<?php echo esc_attr( $v ); ?>" <?php echo esc_attr( $selected ); ?>><?php echo esc_html( $l ); ?></option>';
+			<option value="<?php echo esc_attr( $v ); ?>" <?php echo esc_attr( $selected ); ?>><?php echo esc_html( $l ); ?></option>
 			<?php
 		}
 	}
 	?>
 	</select>
 	<?php
+	if ( isset( $param['classes'] ) && 'mightyshare_template_field' === $param['classes'] ) {
+		?>
+		<a href="#TB_inline?&width=840&height=750&inlineId=mightyshare-template-picker" class="mightyshare-template-picker-button thickbox button button-primary" data-pickerfor="<?php echo esc_attr( $prefix . $printable_id ); ?>">Browse Templates</a>
+		<div class="mightyshare-image-preview"></div>
+		<?php
+	}
 }
 
 function render_mightyshare_text_field( $param, $value = '', $prefix = '' ) {

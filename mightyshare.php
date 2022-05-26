@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.1.0
+ * Version: 1.1.1
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.1.0' );
+define( 'MIGHTYSHARE_VERSION', '1.1.1' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
@@ -77,8 +77,8 @@ class Mightyshare_Plugin_Options {
 				}
 			}
 
-			$mightyshare_globals = new Mightyshare_Globals();
-			$template_options = $mightyshare_globals->mightyshare_templates();
+			$mightyshare_globals   = new Mightyshare_Globals();
+			$template_options      = $mightyshare_globals->mightyshare_templates();
 			$post_template_options = array( '' => 'Default' . $default_template );
 
 			foreach ( $template_options as $key => $value ) {
@@ -201,7 +201,7 @@ class Mightyshare_Plugin_Options {
 			array( $this, 'render_default_template_field' ),
 			'mightyshare',
 			'display',
-			array( 'label_for' => 'default_template_field' )
+			array( 'label_for' => 'mightyshare_default_template' )
 		);
 
 		add_settings_field(
@@ -300,8 +300,8 @@ class Mightyshare_Plugin_Options {
 				<?php
 
 				$mightyshare_globals = new Mightyshare_Globals();
-				$template_options = $mightyshare_globals->mightyshare_templates();
-				$template_options = array( '' => 'Default' ) + $template_options;
+				$template_options    = $mightyshare_globals->mightyshare_templates();
+				$template_options    = array( '' => 'Default' ) + $template_options;
 
 				settings_fields( 'mightyshare' );
 				$options = get_option( 'mightyshare' );
@@ -406,10 +406,39 @@ class Mightyshare_Plugin_Options {
 			?>
 		</div>
 
-		<style>#mightyshare-admin-header{display:flex;align-items:center;background:#2e66d2;margin:0 0 10px -20px;padding:0 20px 0 22px;overflow:hidden}#mightyshare-page-title{font-size:24px;color:#fff}#mightyshare-admin-header #mightyshare-admin-header-buttons{text-transform:uppercase;line-height:60px;height:60px;display:flex;flex-grow:1;justify-content:flex-end;align-items:center;margin:0 0 0 20px}#mightyshare-admin-header #mightyshare-admin-header-buttons a{padding:8px 10px;color:#fff;text-decoration:none;margin:0 0 0 10px;line-height:normal;font-size:13px;border-radius:3px}#mightyshare-admin-header #mightyshare-admin-header-buttons a.mightyshare-active,#mightyshare-admin-header #mightyshare-admin-header-buttons a:hover{background:rgba(0,0,0,.3)}#mightyshare-admin-header #mightyshare-admin-header-notice{float:right;color:#fff;line-height:60px}#mightyshare-admin-header #mightyshare-admin-header-notice a{color:#fff;font-weight:700}#mightyshare-settings-page .mightyshare-settings-section h2{font-weight:bold;font-size:18px;line-height:normal;margin:0;padding-bottom:15px;border-bottom:1px solid #e8eef1}@media all and (max-width:782px){#mightyshare-page-title{font-size:18px}}.mightyshare-image-preview img{border:1px solid #000;margin-top:0.6em;max-width: 300px;max-height:200px;}#mightyshare-settings-page .notice {margin: 10px 0px;}
-		.mightyshare-toggler-wrapper{display:block;width:45px;height:25px;cursor:pointer;position:relative}.mightyshare-toggler-wrapper input[type=checkbox]{display:none}.mightyshare-toggler-wrapper input[type=checkbox]:checked+.toggler-slider{background-color:#2e66d2}.mightyshare-toggler-wrapper .toggler-slider{background-color:#ccc;position:absolute;border-radius:100px;top:0;left:0;width:100%;height:100%;-webkit-transition:all .18s ease;transition:all .18s ease}.mightyshare-toggler-wrapper .toggler-knob{position:absolute;-webkit-transition:all .18s ease;transition:all .18s ease;width:calc(25px - 6px);height:calc(25px - 6px);border-radius:50%;left:3px;top:3px;background-color:#fff}.mightyshare-toggler-wrapper input[type=checkbox]:checked+.toggler-slider .toggler-knob{left:calc(100% - 19px - 3px)}.postbox{border-color:#d1d6d9;border-radius:2px;}.mightyshare-label.checkbox{margin-right:10px;}.mightyshare-upload-img-button img{background:#e9eef0;padding:0.5em;}
+		<style>#mightyshare-admin-header{display:flex;align-items:center;background:#2e66d2;margin:0 0 10px -20px;padding:0 20px 0 22px;overflow:hidden}#mightyshare-page-title{font-size:24px;color:#fff}#mightyshare-admin-header #mightyshare-admin-header-buttons{text-transform:uppercase;line-height:60px;height:60px;display:flex;flex-grow:1;justify-content:flex-end;align-items:center;margin:0 0 0 20px}#mightyshare-admin-header #mightyshare-admin-header-buttons a{padding:8px 10px;color:#fff;text-decoration:none;margin:0 0 0 10px;line-height:normal;font-size:13px;border-radius:3px}#mightyshare-admin-header #mightyshare-admin-header-buttons a.mightyshare-active,#mightyshare-admin-header #mightyshare-admin-header-buttons a:hover{background:rgba(0,0,0,.3)}#mightyshare-admin-header #mightyshare-admin-header-notice{float:right;color:#fff;line-height:60px}#mightyshare-admin-header #mightyshare-admin-header-notice a{color:#fff;font-weight:700}#mightyshare-settings-page .mightyshare-settings-section h2{font-weight:bold;font-size:18px;line-height:normal;margin:0;padding-bottom:15px;border-bottom:1px solid #e8eef1}@media all and (max-width:782px){#mightyshare-page-title{font-size:18px}}.mightyshare-image-preview img{border:1px solid #000;margin-top:0.6em;max-width: 320px;max-height:220px;}#mightyshare-settings-page .notice {margin: 10px 0px;}
+		.mightyshare-toggler-wrapper{display:block;width:45px;height:25px;cursor:pointer;position:relative}.mightyshare-toggler-wrapper input[type=checkbox]{display:none}.mightyshare-toggler-wrapper input[type=checkbox]:checked+.toggler-slider{background-color:#2e66d2}.mightyshare-toggler-wrapper .toggler-slider{background-color:#ccc;position:absolute;border-radius:100px;top:0;left:0;width:100%;height:100%;-webkit-transition:all .18s ease;transition:all .18s ease}.mightyshare-toggler-wrapper .toggler-knob{position:absolute;-webkit-transition:all .18s ease;transition:all .18s ease;width:calc(25px - 6px);height:calc(25px - 6px);border-radius:50%;left:3px;top:3px;background-color:#fff}.mightyshare-toggler-wrapper input[type=checkbox]:checked+.toggler-slider .toggler-knob{left:calc(100% - 19px - 3px)}.postbox{border-color:#d1d6d9;border-radius:2px;}.mightyshare-label.checkbox{margin-right:10px;}.mightyshare-upload-img-button img{background:#e9eef0;padding:0.5em;}.mightyshare-description{max-width:540px;}#mightyshare-api-key-status.loaded{display:block}#mightyshare-api-key-status.loaded.success{color:#27ae60;}#mightyshare-api-key-status.loaded.fail{color:#c0392b;}
+		.mightyshare-template-picker{display:grid;grid-template-columns:1fr 1fr;gap:.5em}.mightyshare-template-picker img{max-width:100%;height:auto}.mightyshare-template-picker .title{font-weight:700;padding:.3em 1em .5em 1em;text-align:center}.mightyshare-template-picker .template-block{border:3px solid transparent;cursor:pointer;padding:.5em}.mightyshare-template-picker .template-block:hover{border-color:#dcdcde;background-color:#efefef}.mightyshare-template-picker .template-block.active{border-color:#5dade2;background-color:#d6eaf8}
 		</style>
+		<?php add_thickbox(); ?>
+		<div id="mightyshare-template-picker" style="display:none;">
+			<h2>Select Template</h2>
+			<div class="mightyshare-template-picker" id="mightyshare-template-picker-modal" data-pickerfor="">
+			<?php
+			$mightyshare_globals = new Mightyshare_Globals();
+			$template_options    = $mightyshare_globals->mightyshare_templates();
+			foreach ( $template_options as $key => $template ) {
+				?>
+				<div class="template-block" data-mightysharetemplate="<?php echo esc_attr( $key ); ?>">
+					<img src="https://api.mightyshare.io/template/preview/<?php echo esc_attr( $key ); ?>.png">
+					<div class="title"><?php echo esc_attr( $template ); ?></div>
+				</div>
+				<?php
+			}
+			?>
+			</div>
+		</div>
 		<?php
+		$options = get_option( 'mightyshare' );
+		if ( isset( $options['mightyshare_api_key'] ) && ! empty( $options['mightyshare_api_key'] ) ){
+			?>
+			<script>
+			document.addEventListener('DOMContentLoaded', function () {
+				mightyshareApiKeyCheck('<?php echo esc_attr( $options['mightyshare_api_key'] ); ?>');
+			}, false);
+			</script>
+			<?php
+		}
 	}
 
 	// Fields for admin page.
@@ -429,7 +458,7 @@ class Mightyshare_Plugin_Options {
 		?>
 		<label class="mightyshare-toggler-wrapper"><input type="checkbox" name="mightyshare[enable_mightyshare]" class="enable_mightyshare_field" value="checked" <?php echo esc_attr( checked( $value, 'checked', false ) ); ?>><div class="toggler-slider">
 		<div class="toggler-knob"></div></div></label>
-		<p class="description"><?php echo wp_kses_post( __( 'This controls if MightyShare is globally enabled on your site. <br /><small>Note you can manually enable/disable MightyShare per post type below, this value will overwrite everything if disabled.</small>', 'mightyshare' ) ); ?></p>
+		<p class="mightyshare-description description"><?php echo wp_kses_post( __( 'This controls if MightyShare is globally enabled on your site. <br /><small>Note you can manually enable/disable MightyShare per post type below, this value will overwrite everything if disabled.</small>', 'mightyshare' ) ); ?></p>
 		<?php
 	}
 
@@ -446,7 +475,7 @@ class Mightyshare_Plugin_Options {
 		// Field output.
 		?>
 		<input type="<?php echo esc_attr( $field_type ); ?>" name="mightyshare[mightyshare_api_key]" class="regular-text	mightyshare_api_key_field" placeholder="<?php echo esc_attr( __( 'API KEY', 'mightyshare' ) ); ?>" id="mightyshare_api_key_field" value="<?php echo esc_attr( $value_api_key ); ?>"> <label><input type="checkbox" onclick="toggleApiKeyFieldMask('.mightyshare_api_key_field')" <?php echo esc_attr( $checked ); ?>> <?php echo wp_kses_post( __( 'Display API Key', 'mightyshare' ) ); ?></label>
-		<p class="description"><?php echo wp_kses_post( __( 'Your MightyShare.io API Key. <br /><small>Don\'t have an API Key? <a href="https://mightyshare.io/register" rel="nofollow noopener" target="_blank">Get a free MightyShare API Key</a></small>', 'mightyshare' ) ); ?></p>
+		<p class="mightyshare-description description"><span id="mightyshare-api-key-status"></span><?php echo wp_kses_post( __( 'Your MightyShare.io API Key. <br /><small>Don\'t have an API Key? <a href="https://mightyshare.io/register" rel="nofollow noopener" target="_blank">Get a free MightyShare API Key</a></small>', 'mightyshare' ) ); ?></p>
 		<?php
 	}
 
@@ -523,7 +552,6 @@ class Mightyshare_Plugin_Options {
 		// Field output.
 		render_mightyshare_select_field( $field_options, $value );
 		?>
-		<p class="description"><?php echo wp_kses_post( __( 'Default template used for renders. <br /><small>View <a href="https://mightyshare.io/templates/" rel="nofollow noopener" target="_blank">Template Examples</a></small><br /><div class="mightyshare-image-preview"></div>', 'mightyshare' ) ); ?></p>
 		<?php
 	}
 
@@ -546,7 +574,7 @@ class Mightyshare_Plugin_Options {
 
 		render_mightyshare_color_field( $field_options, $value );
 		?>
-			<p class="description"><?php echo esc_html( __( 'Primary color used in templates (typically the border color).', 'mightyshare' ) ); ?></p>
+			<p class="mightyshare-description description"><?php echo esc_html( __( 'Primary color used in templates (typically the border color).', 'mightyshare' ) ); ?></p>
 		<?php
 	}
 
@@ -564,7 +592,7 @@ class Mightyshare_Plugin_Options {
 			$value
 		);
 		?>
-		<p class="description"><?php echo wp_kses_post( __( 'Your logo to be used in templates.', 'mightyshare' ) ); ?></p>
+		<p class="mightyshare-description description"><?php echo wp_kses_post( __( 'Your logo to be used in templates.', 'mightyshare' ) ); ?></p>
 		<?php
 	}
 
@@ -582,7 +610,7 @@ class Mightyshare_Plugin_Options {
 			$value
 		);
 		?>
-		<p class="description"><?php echo wp_kses_post( __( 'By default templates will use your post/page featured image. Set a fallback photo to be used if a post/page has no set featured image.', 'mightyshare' ) ); ?></p>
+		<p class="mightyshare-description description"><?php echo wp_kses_post( __( 'By default templates will use your post/page featured image. Set a fallback photo to be used if a post/page has no set featured image.', 'mightyshare' ) ); ?></p>
 		<?php
 	}
 
@@ -627,7 +655,7 @@ class Mightyshare_Plugin_Options {
 			$value
 		);
 		?>
-		<p class="description"><?php echo wp_kses_post( __( 'Check this to have MightyShare output the og:image meta tag. <br /><small>Recommended if you aren\'t using an SEO plugin.</small>', 'mightyshare' ) ); ?></p>
+		<p class="mightyshare-description description"><?php echo wp_kses_post( __( 'Check this to have MightyShare output the og:image meta tag. <br /><small>Recommended if you aren\'t using an SEO plugin.</small>', 'mightyshare' ) ); ?></p>
 		<?php
 	}
 
@@ -966,6 +994,7 @@ class Mightyshare_Globals {
 			'clean-3'         => 'clean-3',
 			'bold-1'          => 'bold-1',
 			'bold-2'          => 'bold-2',
+			'float-1'         => 'float-1',
 			'business-1'      => 'business-1',
 			'8bit-1'          => '8bit-1',
 			'screenshot-self' => 'Use a screenshot of the current page',

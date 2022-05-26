@@ -66,4 +66,42 @@ jQuery(document).ready(function(){
 	jQuery(function() {
 		jQuery('.mightyshare_color_field').wpColorPicker();
 	});
+
+	jQuery(".mightyshare-template-picker-button").on("click", function(e) {
+		jQuery("#mightyshare-template-picker-modal").attr("data-pickerfor", jQuery(e.currentTarget).attr("data-pickerfor"));
+		jQuery("#mightyshare-template-picker-modal .template-block").removeClass('active');
+		jQuery("#mightyshare-template-picker-modal .template-block[data-mightysharetemplate="+jQuery("#"+jQuery(e.currentTarget).attr("data-pickerfor")).val()+"]").addClass('active');
+	});
+
+	jQuery("#mightyshare-template-picker-modal .template-block").on("click", function(e) {
+		var selectedTemplateField = jQuery(e.currentTarget).parent("#mightyshare-template-picker-modal").attr('data-pickerfor');
+		var selectedTemplate = jQuery(e.currentTarget).data("mightysharetemplate");
+		jQuery("#"+selectedTemplateField).val(selectedTemplate);
+		document.querySelector("#"+selectedTemplateField).dispatchEvent(new Event("change"));
+		tb_remove();
+	});
 });
+
+function mightyshareApiKeyCheck(apikey) {
+	if(document.querySelector('#mightyshare-api-key-status')){
+		const data = { 'apikey': apikey };
+
+		fetch('https://api.mightyshare.io/validate-key/', {
+			method: 'POST',
+			mode: 'cors',
+			headers: {
+			  'Content-Type': 'application/json'
+			},
+			body: JSON.stringify(data),
+		})
+		.then(response => response.json())
+		.then(data => {
+			document.querySelector('#mightyshare-api-key-status').innerHTML = data.message;
+			document.querySelector('#mightyshare-api-key-status').classList.add("loaded");
+			document.querySelector('#mightyshare-api-key-status').classList.add(data.type);
+		})
+		.catch((error) => {
+		  console.error('Error:', error);
+		});
+	}
+}
