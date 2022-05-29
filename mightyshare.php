@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.1.1
+ * Version: 1.1.2
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.1.1' );
+define( 'MIGHTYSHARE_VERSION', '1.1.2' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
@@ -855,21 +855,23 @@ class Mightyshare_Frontend {
 		}
 
 		if ( ! empty( $template_parts['background'] ) && $template_parts['background'] ) {
+			$image_url = is_numeric( $template_parts['background'] ) ? wp_get_attachment_image_src( $template_parts['background'], 'full' )[0] : $template_parts['background'];
 			array_push(
 				$template_json,
 				array(
 					'name'      => 'background',
-					'image_url' => rawurlencode( htmlspecialchars_decode( wp_get_attachment_image_src( $template_parts['background'], 'full' )[0] ) ),
+					'image_url' => rawurlencode( htmlspecialchars_decode( $image_url ) ),
 				)
 			);
 		}
 
-		if ( ! empty( $template_parts['logo'] ) && ! empty( wp_get_attachment_image_src( $template_parts['logo'], 'full' )[0] ) ) {
+		if ( ! empty( $template_parts['logo'] ) && $template_parts['logo'] ) {
+			$image_url = is_numeric( $template_parts['logo'] ) ? wp_get_attachment_image_src( $template_parts['logo'], 'full' )[0] : $template_parts['logo'];
 			array_push(
 				$template_json,
 				array(
 					'name'      => 'logo',
-					'image_url' => rawurlencode( htmlspecialchars_decode( wp_get_attachment_image_src( $template_parts['logo'], 'full' )[0] ) ),
+					'image_url' => rawurlencode( htmlspecialchars_decode( $image_url ) ),
 				)
 			);
 		}
