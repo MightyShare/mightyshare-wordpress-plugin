@@ -5,7 +5,7 @@ Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
 Requires at least: 5.4
 Tested up to: 6.0
 Requires PHP: 7.0
-Stable tag: 1.1.2
+Stable tag: 1.1.3
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
@@ -67,6 +67,13 @@ If you are using an SEO plugin be sure to have a default image set for the type 
 == Screenshots ==
 
 == Changelog ==
+
+= 1.1.3 =
+* Changed default render format to JPEG from PNG.
+* Option to use post excepts as subheadings in MightyShare templates.
+* Bug fix for MightyShare not setting a correct height/width for OG images when using Yoast.
+* Bug fix that didn't allow settings checkboxes to be unchecked.
+* Bug fix for initial install showing PHP warnings.
 
 = 1.1.2 =
 * Bug fix when overwriting background image urls with the MightyShare filter.

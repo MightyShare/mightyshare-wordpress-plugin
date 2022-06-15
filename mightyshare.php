@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.1.2
+ * Version: 1.1.3
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.1.2' );
+define( 'MIGHTYSHARE_VERSION', '1.1.3' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
@@ -51,29 +51,30 @@ class Mightyshare_Plugin_Options {
 		}
 
 		// Post meta boxes.
-		require_once( MIGHTYSHARE_DIR_URI . '/inc/admin/mightyshare-metaboxes.php' );
+		require_once MIGHTYSHARE_DIR_URI . '/inc/admin/mightyshare-metaboxes.php';
 
 		add_filter( 'mightyshare_register_metaboxes', 'mightshare_metaboxes' );
 		function mightshare_metaboxes( $metaboxes ) {
-			$options = get_option( 'mightyshare' );
+			$options          = get_option( 'mightyshare' );
+			$default_enabled  = '';
+			$default_template = '';
 
 			if ( ! empty( $options ) ) {
 				$default_enabled = ' (Disabled)';
 				$default_template = isset( $options['default_template'] ) ? ' (' . $options['default_template'] . ')' : '';
 
 				if ( isset( $_GET['post'] ) ) {
-					$current_post_id =  esc_attr( wp_unslash( $_GET['post'] ) );
+					$current_post_id = esc_attr( wp_unslash( $_GET['post'] ) );
 
 					if ( ! empty( $current_post_id ) ) {
 						if ( $options['enabled_on']['post_types'] && get_post_type( $current_post_id ) && in_array( get_post_type( $current_post_id ), $options['enabled_on']['post_types'], true ) ) {
 							$default_enabled = ' (Enabled)';
 						}
 
-						if ( ! empty ( $options['post_type_overwrites']['post_types'][get_post_type( $current_post_id )]['template'] ) ) {
-							$default_template = ' (' . $options['post_type_overwrites']['post_types'][get_post_type( $current_post_id )]['template'] . ')';
+						if ( ! empty ( $options['post_type_overwrites']['post_types'][ get_post_type( $current_post_id ) ]['template'] ) ) {
+							$default_template = ' (' . $options['post_type_overwrites']['post_types'][ get_post_type( $current_post_id ) ]['template'] . ')';
 						}
 					}
-
 				}
 			}
 
@@ -142,8 +143,24 @@ class Mightyshare_Plugin_Options {
 
 	function mightyshare_merge_options( $data ) {
 		$existing = get_option( 'mightyshare' );
-		if ( !is_array( $existing ) || !is_array( $data ) )
+		if ( ! is_array( $existing ) || ! is_array( $data ) ) {
 			return $data;
+		}
+
+		if ( 'options' === $data['current_settings_page_name'] ) {
+			$checkboxes = array(
+				'enable_mightyshare',
+				'enable_description',
+				'output_opengraph',
+			);
+
+			foreach ( $checkboxes as $checkbox ) {
+				if ( empty ( $data[$checkbox] ) ) {
+					unset( $existing[$checkbox] );
+				}
+			}
+		}
+
 		return array_merge( $existing, $data );
 	}
 
@@ -213,6 +230,14 @@ class Mightyshare_Plugin_Options {
 		);
 
 		add_settings_field(
+			'enable_description',
+			__( 'Enable Subheadings', 'mightyshare' ),
+			array( $this, 'render_enable_description_field' ),
+			'mightyshare',
+			'display'
+		);
+
+		add_settings_field(
 			'logo',
 			__( 'Logo', 'mightyshare' ),
 			array( $this, 'render_logo_field' ),
@@ -257,7 +282,7 @@ class Mightyshare_Plugin_Options {
 			return;
 		}
 
-		$tab = $_GET['tab'] ?? 'options';
+		$tab = ( ! empty( $_GET['tab'] ) && wp_unslash ( $_GET['tab'] ) ) ? wp_unslash ( $_GET['tab'] ) : 'options';
 
 		wp_enqueue_style( 'wp-color-picker' );
 		wp_enqueue_script( 'wp-color-picker' );
@@ -268,7 +293,7 @@ class Mightyshare_Plugin_Options {
 
 	public function page_layout() {
 
-		$tab = $_GET['tab'] ?? 'options';
+		$tab = ( ! empty( $_GET['tab'] ) && wp_unslash ( $_GET['tab'] ) ) ? wp_unslash ( $_GET['tab'] ) : 'options';
 		?>
 		<div id="mightyshare-settings-page" class="wrap">
 			<h2 style="display:none;"></h2>
@@ -278,7 +303,7 @@ class Mightyshare_Plugin_Options {
 				wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'mightyshare' ) );
 			}
 
-			if( 'options' === $tab ) {
+			if ( 'options' === $tab ) {
 			// General Options Page Layout.
 			?>
 			<form action="options.php" method="post">
@@ -292,6 +317,7 @@ class Mightyshare_Plugin_Options {
 
 				submit_button();
 				?>
+			<input type="hidden" id="mightyshare[current_settings_page_name]" name="mightyshare[current_settings_page_name]" value="options">
 			</form>
 			<?php
 			} elseif ( 'post-types' === $tab ) {
@@ -318,69 +344,99 @@ class Mightyshare_Plugin_Options {
 
 							add_settings_section(
 								$key,
-								__( $value->label, 'mightyshare' ),
+								$value->label,
 								false,
 								'mightyshare'
 							);
 
-							$mightyshare_display_options = [
-								'enabled_on' => [
+							$mightyshare_display_options = array(
+								'enabled_on' => array(
 									'label'         => 'Enabled for ' . $value->label . '?',
+									'weight'        => 1,
 									'field_type'    => 'render_mightyshare_checkbox_field',
-									'value'         => ( ! empty( $options['enabled_on'][$enabled_key] ) && in_array( $key, $options['enabled_on'][$enabled_key], true ) ) ? 'yes' : '',
-									'field_options' => [
+									'value'         => ( ! empty( $options['enabled_on'][ $enabled_key ] ) && in_array( $key, $options['enabled_on'][ $enabled_key ], true ) ) ? 'yes' : '',
+									'field_options' => array(
 										'id'        => 'mightyshare[enabled_on][' . $enabled_key . '][]',
 										'classes'   => 'mightyshare_enabled_field',
 										'set_value' => $key,
-									]
-								],
-								'template' => [
+									),
+								),
+								'template' => array(
 									'label'         => 'Template Overwrite',
+									'weight'        => 4,
 									'field_type'    => 'render_mightyshare_select_field',
 									'value'         => ( ! empty( $options['post_type_overwrites'][ $enabled_key ][ $key ]['template'] ) ) ? $options['post_type_overwrites'][ $enabled_key ][ $key ]['template'] : '',
-									'field_options' => [
+									'field_options' => array(
 										'id'      => 'mightyshare[post_type_overwrites][' . $enabled_key . '][' . $key . '][template]',
 										'classes' => 'mightyshare_template_field',
 										'options' => $template_options,
-									]
-								],
-								'primary_color' => [
+									),
+								),
+								'primary_color' => array(
 									'label'         => 'Primary Color Overwrite',
+									'weight'        => 6,
 									'field_type'    => 'render_mightyshare_color_field',
-									'value'         => ( ! empty( $options['post_type_overwrites'][$enabled_key][$key]['primary_color'] ) ) ? $options['post_type_overwrites'][$enabled_key][$key]['primary_color'] : '',
-									'field_options' => [
+									'value'         => ( ! empty( $options['post_type_overwrites'][ $enabled_key ][ $key ]['primary_color'] ) ) ? $options['post_type_overwrites'][ $enabled_key ][ $key ]['primary_color'] : '',
+									'field_options' => array(
 										'id'      => 'mightyshare[post_type_overwrites][' . $enabled_key . '][' . $key . '][primary_color]',
 										'classes' => '',
-									]
-								],
-								'logo' => [
+									),
+								),
+								'logo' => array(
 									'label'         => 'Logo Overwrite',
+									'weight'        => 8,
 									'field_type'    => 'render_mightyshare_image_field',
-									'value'         => ( ! empty( $options['post_type_overwrites'][$enabled_key][$key]['logo'] ) ) ? $options['post_type_overwrites'][$enabled_key][$key]['logo'] : '',
-									'field_options' => [
+									'value'         => ( ! empty( $options['post_type_overwrites'][ $enabled_key ][ $key ]['logo'] ) ) ? $options['post_type_overwrites'][ $enabled_key ][ $key ]['logo'] : '',
+									'field_options' => array(
 										'id'      => 'mightyshare[post_type_overwrites][' . $enabled_key . '][' . $key . '][logo]',
 										'classes' => '',
 										'options' => $template_options,
-									]
-								],
-								'background' => [
+									),
+								),
+								'background' => array(
 									'label'         => 'Fallback Image Overwrite',
+									'weight'        => 10,
 									'field_type'    => 'render_mightyshare_image_field',
-									'value'         => ( ! empty( $options['post_type_overwrites'][$enabled_key][$key]['background'] ) ) ? $options['post_type_overwrites'][$enabled_key][$key]['background'] : '',
-									'field_options' => [
+									'value'         => ( ! empty( $options['post_type_overwrites'][ $enabled_key ][ $key ]['background'] ) ) ? $options['post_type_overwrites'][ $enabled_key ][ $key ]['background'] : '',
+									'field_options' => array(
 										'id'      => 'mightyshare[post_type_overwrites][' . $enabled_key . '][' . $key . '][background]',
 										'classes' => '',
 										'options' => $template_options,
-									]
-								],
-							];
+									),
+								),
+							);
+
+							if ( 'WP_Post_Type' === get_class( $value ) || 'WP_Taxonomy' === get_class( $value ) ) {
+								$mightyshare_display_options['description'] =
+									array(
+										'label'         => 'Use Post Excert as Subheading in Compatible Templates?',
+										'weight'        => 7,
+										'field_type'    => 'render_mightyshare_checkbox_field',
+										'value'         => ( ! empty( $options['post_type_overwrites'][ $enabled_key ][ $key ]['enable_description'] ) ) ? 'yes' : '',
+										'field_options' => array(
+											'id'        => 'mightyshare[post_type_overwrites][' . $enabled_key . '][' . $key . '][enable_description]',
+											'classes'   => '',
+											'default'   => 'no',
+											'set_value' => 'yes',
+										),
+									);
+
+									if ( 'WP_Taxonomy' === get_class( $value ) ) {
+										$mightyshare_display_options['description']['label'] = 'Use Taxonomy Description as Subheading in Compatible Templates?';
+									}
+							}
+
+							usort( $mightyshare_display_options, function( $a, $b ) {
+									return $a['weight'] <=> $b['weight'];
+								}
+							);
 
 							foreach ( $mightyshare_display_options as $display_key => $display_value ) {
 
 								add_settings_field(
 									$display_key,
-									__( $display_value['label'], 'mightyshare' ),
-									function($display_value) {
+									$display_value['label'],
+									function( $display_value ) {
 										$display_value['field_type']( $display_value['field_options'], $display_value['value'] );
 									},
 									'mightyshare',
@@ -392,23 +448,21 @@ class Mightyshare_Plugin_Options {
 							$this->mightyshare_settings_section( 'mightyshare', $key );
 
 						}
-
 					}
-
 				}
 
 				submit_button();
 
 				?>
+				<input type="hidden" id="mightyshare[current_settings_page_name]" name="mightyshare[current_settings_page_name]" value="post-types">
 				</form>
 				<?php
 			}
 			?>
 		</div>
 
-		<style>#mightyshare-admin-header{display:flex;align-items:center;background:#2e66d2;margin:0 0 10px -20px;padding:0 20px 0 22px;overflow:hidden}#mightyshare-page-title{font-size:24px;color:#fff}#mightyshare-admin-header #mightyshare-admin-header-buttons{text-transform:uppercase;line-height:60px;height:60px;display:flex;flex-grow:1;justify-content:flex-end;align-items:center;margin:0 0 0 20px}#mightyshare-admin-header #mightyshare-admin-header-buttons a{padding:8px 10px;color:#fff;text-decoration:none;margin:0 0 0 10px;line-height:normal;font-size:13px;border-radius:3px}#mightyshare-admin-header #mightyshare-admin-header-buttons a.mightyshare-active,#mightyshare-admin-header #mightyshare-admin-header-buttons a:hover{background:rgba(0,0,0,.3)}#mightyshare-admin-header #mightyshare-admin-header-notice{float:right;color:#fff;line-height:60px}#mightyshare-admin-header #mightyshare-admin-header-notice a{color:#fff;font-weight:700}#mightyshare-settings-page .mightyshare-settings-section h2{font-weight:bold;font-size:18px;line-height:normal;margin:0;padding-bottom:15px;border-bottom:1px solid #e8eef1}@media all and (max-width:782px){#mightyshare-page-title{font-size:18px}}.mightyshare-image-preview img{border:1px solid #000;margin-top:0.6em;max-width: 320px;max-height:220px;}#mightyshare-settings-page .notice {margin: 10px 0px;}
-		.mightyshare-toggler-wrapper{display:block;width:45px;height:25px;cursor:pointer;position:relative}.mightyshare-toggler-wrapper input[type=checkbox]{display:none}.mightyshare-toggler-wrapper input[type=checkbox]:checked+.toggler-slider{background-color:#2e66d2}.mightyshare-toggler-wrapper .toggler-slider{background-color:#ccc;position:absolute;border-radius:100px;top:0;left:0;width:100%;height:100%;-webkit-transition:all .18s ease;transition:all .18s ease}.mightyshare-toggler-wrapper .toggler-knob{position:absolute;-webkit-transition:all .18s ease;transition:all .18s ease;width:calc(25px - 6px);height:calc(25px - 6px);border-radius:50%;left:3px;top:3px;background-color:#fff}.mightyshare-toggler-wrapper input[type=checkbox]:checked+.toggler-slider .toggler-knob{left:calc(100% - 19px - 3px)}.postbox{border-color:#d1d6d9;border-radius:2px;}.mightyshare-label.checkbox{margin-right:10px;}.mightyshare-upload-img-button img{background:#e9eef0;padding:0.5em;}.mightyshare-description{max-width:540px;}#mightyshare-api-key-status.loaded{display:block}#mightyshare-api-key-status.loaded.success{color:#27ae60;}#mightyshare-api-key-status.loaded.fail{color:#c0392b;}
-		.mightyshare-template-picker{display:grid;grid-template-columns:1fr 1fr;gap:.5em}.mightyshare-template-picker img{max-width:100%;height:auto}.mightyshare-template-picker .title{font-weight:700;padding:.3em 1em .5em 1em;text-align:center}.mightyshare-template-picker .template-block{border:3px solid transparent;cursor:pointer;padding:.5em}.mightyshare-template-picker .template-block:hover{border-color:#dcdcde;background-color:#efefef}.mightyshare-template-picker .template-block.active{border-color:#5dade2;background-color:#d6eaf8}
+		<style>#mightyshare-admin-header{display:flex;align-items:center;background:#2e66d2;margin:0 0 10px -20px;padding:0 20px 0 22px;overflow:hidden}#mightyshare-page-title{font-size:24px;color:#fff}#mightyshare-admin-header #mightyshare-admin-header-buttons{text-transform:uppercase;line-height:60px;height:60px;display:flex;flex-grow:1;justify-content:flex-end;align-items:center;margin:0 0 0 20px}#mightyshare-admin-header #mightyshare-admin-header-buttons a{padding:8px 10px;color:#fff;text-decoration:none;margin:0 0 0 10px;line-height:normal;font-size:13px;border-radius:3px}#mightyshare-admin-header #mightyshare-admin-header-buttons a.mightyshare-active,#mightyshare-admin-header #mightyshare-admin-header-buttons a:hover{background:rgba(0,0,0,.3)}#mightyshare-admin-header #mightyshare-admin-header-notice{float:right;color:#fff;line-height:60px}#mightyshare-admin-header #mightyshare-admin-header-notice a{color:#fff;font-weight:700}#mightyshare-settings-page .mightyshare-settings-section h2{font-weight:bold;font-size:18px;line-height:normal;margin:0;padding-bottom:15px;border-bottom:1px solid #e8eef1}@media all and (max-width:782px){#mightyshare-page-title{font-size:18px}}.mightyshare-image-preview img{border:1px solid #000;margin-top:0.6em;max-width: 320px;max-height:220px;}#mightyshare-settings-page .notice {margin: 10px 0px;}.form-table td label {display:initial;}
+		.mightyshare-settings-section .mightyshare-toggler-wrapper{display:block;width:45px;height:25px;cursor:pointer;position:relative}.mightyshare-toggler-wrapper input[type=checkbox]{display:none}.mightyshare-toggler-wrapper input[type=checkbox]:checked+.toggler-slider{background-color:#2e66d2}.mightyshare-toggler-wrapper .toggler-slider{background-color:#ccc;position:absolute;border-radius:100px;top:0;left:0;width:100%;height:100%;-webkit-transition:all .18s ease;transition:all .18s ease}.mightyshare-toggler-wrapper .toggler-knob{position:absolute;-webkit-transition:all .18s ease;transition:all .18s ease;width:calc(25px - 6px);height:calc(25px - 6px);border-radius:50%;left:3px;top:3px;background-color:#fff}.mightyshare-toggler-wrapper input[type=checkbox]:checked+.toggler-slider .toggler-knob{left:calc(100% - 19px - 3px)}.postbox{border-color:#d1d6d9;border-radius:2px;}.mightyshare-label.checkbox{margin-right:10px;}.mightyshare-upload-img-button img{background:#e9eef0;padding:0.5em;}.mightyshare-description{max-width:540px;}#mightyshare-api-key-status.loaded{display:block}#mightyshare-api-key-status.loaded.success{color:#27ae60;}#mightyshare-api-key-status.loaded.fail{color:#c0392b;}
 		</style>
 		<?php add_thickbox(); ?>
 		<div id="mightyshare-template-picker" style="display:none;">
@@ -430,7 +484,7 @@ class Mightyshare_Plugin_Options {
 		</div>
 		<?php
 		$options = get_option( 'mightyshare' );
-		if ( isset( $options['mightyshare_api_key'] ) && ! empty( $options['mightyshare_api_key'] ) ){
+		if ( isset( $options['mightyshare_api_key'] ) && ! empty( $options['mightyshare_api_key'] ) ) {
 			?>
 			<script>
 			document.addEventListener('DOMContentLoaded', function () {
@@ -468,9 +522,9 @@ class Mightyshare_Plugin_Options {
 		$options = get_option( 'mightyshare' );
 
 		// Set default values.
-		$value_api_key  = isset( $options['mightyshare_api_key'] ) ? $options['mightyshare_api_key'] : '';
-		$field_type     = isset( $options['mightyshare_api_key'] ) ? 'password' : 'text';
-		$checked        = isset( $options['mightyshare_api_key'] ) ? '' : 'checked';
+		$value_api_key = isset( $options['mightyshare_api_key'] ) ? $options['mightyshare_api_key'] : '';
+		$field_type    = isset( $options['mightyshare_api_key'] ) ? 'password' : 'text';
+		$checked       = isset( $options['mightyshare_api_key'] ) ? '' : 'checked';
 
 		// Field output.
 		?>
@@ -496,7 +550,7 @@ class Mightyshare_Plugin_Options {
 
 					// Check if enabled for item.
 					$is_checked = '';
-					if ( ! empty( $options['enabled_on'][$enabled_key] ) && in_array( $key, $options['enabled_on'][$enabled_key], true ) ) {
+					if ( ! empty( $options['enabled_on'][ $enabled_key ] ) && in_array( $key, $options['enabled_on'][ $enabled_key ], true ) ) {
 						$is_checked = 'yes';
 					} elseif ( is_array( $options ) ) {
 						$is_checked = 'no';
@@ -516,7 +570,7 @@ class Mightyshare_Plugin_Options {
 					// Field output.
 					render_mightyshare_checkbox_field(
 						array(
-							'name'                => 'mightyshare[enabled_on][' . $enabled_key . '][]',
+							'name'              => 'mightyshare[enabled_on][' . $enabled_key . '][]',
 							'set_value'         => $key,
 							'label'             => true,
 							'default'           => $default_value,
@@ -575,6 +629,28 @@ class Mightyshare_Plugin_Options {
 		render_mightyshare_color_field( $field_options, $value );
 		?>
 			<p class="mightyshare-description description"><?php echo esc_html( __( 'Primary color used in templates (typically the border color).', 'mightyshare' ) ); ?></p>
+		<?php
+	}
+
+	public function render_enable_description_field() {
+
+		// Retrieve data from the database.
+		$options = get_option( 'mightyshare' );
+
+		// Set default value.
+		$value = ( ! empty( $options['enable_description'] ) ) ? 'yes' : 'no';
+
+		// Field output.
+		render_mightyshare_checkbox_field(
+			array(
+				'id'        => 'mightyshare[enable_description]',
+				'default'   => 'no',
+				'set_value' => 'yes',
+			),
+			$value
+		);
+		?>
+			<p class="mightyshare-description description"><?php echo esc_html( __( 'Display a subheading in compatible templates (uses the post excerpt).', 'mightyshare' ) ); ?></p>
 		<?php
 	}
 
@@ -687,7 +763,7 @@ class Mightyshare_Generate_Engine {
 		$api_key         = substr( $key['api_key'], 0, 16 );
 		$api_secret      = substr( $key['api_key'], 16, 32 );
 		$options['page'] = $url;
-		$format          = 'png';
+		$format          = 'jpeg';
 		unset( $options['format'] );
 		$option_parts = array();
 
@@ -719,8 +795,7 @@ class Mightyshare_Frontend {
 	public function mightyshare_opengraph_meta_tags() {
 		if ( in_array( 'wordpress-seo/wp-seo.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) || in_array( 'wordpress-seo-premium/wp-seo-premium.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
 			// Using Yoast SEO.
-			add_filter( 'wpseo_opengraph_image', array( $this, 'mightyshare_overwrite_yoast_opengraph_url' ) );
-			add_filter( 'wpseo_twitter_image', array( $this, 'mightyshare_overwrite_yoast_opengraph_url' ) );
+			add_filter( 'wpseo_frontend_presentation', array( $this, 'mightyshare_overwrite_yoast_url' ) );
 		} elseif ( in_array( 'seo-by-rank-math/rank-math.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
 			// Using Rank Math.
 			add_filter( 'rank_math/opengraph/facebook/image', array( $this, 'mightyshare_overwrite_rankmath_opengraph_url' ) );
@@ -743,15 +818,24 @@ class Mightyshare_Frontend {
 	}
 
 	// Using Yoast SEO.
-	public function mightyshare_overwrite_yoast_opengraph_url( $image ) {
+	public function mightyshare_overwrite_yoast_url( $presentation ) {
 		$mightyshare_frontend = new Mightyshare_Frontend();
 		$template_parts       = $mightyshare_frontend->get_mightyshare_post_details();
 
 		if ( $template_parts['is_enabled'] ) {
-			return $this->mightyshare_generate_og_image();
+			$presentation->open_graph_images = array(
+				array(
+					'url'    => $this->mightyshare_generate_og_image(),
+					'width'  => '1200',
+					'height' => '630',
+					'type'   => 'image/jpeg',
+				),
+			);
+
+			$presentation->twitter_image = $this->mightyshare_generate_og_image();
 		}
 
-		return $image;
+		return $presentation;
 	}
 
 	// Using Rank Math.
@@ -772,7 +856,7 @@ class Mightyshare_Frontend {
 		$template_parts       = $mightyshare_frontend->get_mightyshare_post_details();
 
 		if ( $template_parts['is_enabled'] ) {
-			$facebookMeta['og:image'] = $this->mightyshare_generate_og_image();
+			$facebookMeta['og:image']            = $this->mightyshare_generate_og_image();
 			$facebookMeta['og:image:secure_url'] = $this->mightyshare_generate_og_image();
 		}
 
@@ -854,6 +938,16 @@ class Mightyshare_Frontend {
 			);
 		}
 
+		if ( ! empty( $template_parts['description'] ) ) {
+			array_push(
+				$template_json,
+				array(
+					'name' => 'description',
+					'text' => rawurlencode( htmlspecialchars_decode( $template_parts['description'] ) ),
+				)
+			);
+		}
+
 		if ( ! empty( $template_parts['background'] ) && $template_parts['background'] ) {
 			$image_url = is_numeric( $template_parts['background'] ) ? wp_get_attachment_image_src( $template_parts['background'], 'full' )[0] : $template_parts['background'];
 			array_push(
@@ -898,7 +992,7 @@ class Mightyshare_Frontend {
 		$options = get_option( 'mightyshare' );
 
 		// Don't use if MightyShare is disabled globally.
-		if ( ! $options['enable_mightyshare'] || ! $options['mightyshare_api_key'] ) {
+		if ( empty( $options['enable_mightyshare'] ) || empty( $options['mightyshare_api_key'] ) ) {
 			$returned_template_parts['is_enabled'] = false;
 			return $returned_template_parts;
 		}
@@ -915,9 +1009,14 @@ class Mightyshare_Frontend {
 		$returned_template_parts['logo']          = isset( $options['logo'] ) ? $options['logo'] : '';
 		$returned_template_parts['background']    = isset( $options['fallback_image'] ) ? $options['fallback_image'] : '';
 
+		if ( ! empty( $options['enable_description'] ) ) {
+			$returned_template_parts['enable_description'] = true;
+		}
+
 		if ( $wp_query->is_singular ) {
 			$returned_template_parts['ID']          = $template_parts->ID;
 			$returned_template_parts['title']       = $template_parts->post_title;
+			$returned_template_parts['description'] = $template_parts->post_excerpt;
 			$returned_template_parts['type']        = $template_parts->post_type;
 			$returned_template_parts['object_type'] = 'post_types';
 		}
@@ -925,6 +1024,7 @@ class Mightyshare_Frontend {
 		if ( $wp_query->is_archive ) {
 			$returned_template_parts['ID']          = $template_parts->term_id;
 			$returned_template_parts['title']       = $template_parts->name;
+			$returned_template_parts['description'] = $template_parts->category_description;
 			$returned_template_parts['type']        = $template_parts->taxonomy;
 			$returned_template_parts['object_type'] = 'taxonomies';
 		}
@@ -947,7 +1047,7 @@ class Mightyshare_Frontend {
 				$returned_template_parts['is_enabled'] = false;
 			}
 
-			if( ! empty( get_post_thumbnail_id( $returned_template_parts['ID'] ) ) ) {
+			if ( ! empty( get_post_thumbnail_id( $returned_template_parts['ID'] ) ) ) {
 				$returned_template_parts['background'] = get_post_thumbnail_id( $returned_template_parts['ID'] );
 			}
 
@@ -967,6 +1067,11 @@ class Mightyshare_Frontend {
 			if ( ! empty( $post_title_overwrite ) ) {
 				$returned_template_parts['title'] = $post_title_overwrite;
 			}
+		}
+
+		// Check is subheadings are enabled
+		if ( empty( $returned_template_parts['enable_description'] ) ) {
+			$returned_template_parts['description'] = null;
 		}
 
 		// Apply filters of the render for devs.
