@@ -5,7 +5,7 @@ Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
 Requires at least: 5.4
 Tested up to: 6.0
 Requires PHP: 7.0
-Stable tag: 1.1.3
+Stable tag: 1.2.0
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
@@ -35,6 +35,7 @@ MightyShare sends your post's title, featured image, and post meta data to our s
 * New templates monthly!
 * Works with custom post types.
 * [Developer hooks](https://mightyshare.io/docs/filters/) for creating just about anything!
+* Pick any Google Font to use in templates for paid plans.
 
 == Installation ==
 
@@ -67,6 +68,11 @@ If you are using an SEO plugin be sure to have a default image set for the type 
 == Screenshots ==
 
 == Changelog ==
+
+= 1.2.0 =
+* Google Font selection for users on a paid plan.
+* New template options modal.
+* Bug fix template selector not showing up correctly.
 
 = 1.1.3 =
 * Changed default render format to JPEG from PNG.

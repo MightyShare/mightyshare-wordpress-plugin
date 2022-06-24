@@ -81,27 +81,3 @@ jQuery(document).ready(function(){
 		tb_remove();
 	});
 });
-
-function mightyshareApiKeyCheck(apikey) {
-	if(document.querySelector('#mightyshare-api-key-status')){
-		const data = { 'apikey': apikey };
-
-		fetch('https://api.mightyshare.io/validate-key/', {
-			method: 'POST',
-			mode: 'cors',
-			headers: {
-			  'Content-Type': 'application/json'
-			},
-			body: JSON.stringify(data),
-		})
-		.then(response => response.json())
-		.then(data => {
-			document.querySelector('#mightyshare-api-key-status').innerHTML = data.message;
-			document.querySelector('#mightyshare-api-key-status').classList.add("loaded");
-			document.querySelector('#mightyshare-api-key-status').classList.add(data.type);
-		})
-		.catch((error) => {
-		  console.error('Error:', error);
-		});
-	}
-}

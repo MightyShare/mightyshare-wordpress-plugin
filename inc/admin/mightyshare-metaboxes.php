@@ -118,7 +118,20 @@ function render_mightyshare_select_field( $param, $value = '', $prefix = '' ) {
 	if ( isset( $param['classes'] ) && 'mightyshare_template_field' === $param['classes'] ) {
 		?>
 		<a href="#TB_inline?&width=840&height=750&inlineId=mightyshare-template-picker" class="mightyshare-template-picker-button thickbox button button-primary" data-pickerfor="<?php echo esc_attr( $prefix . $printable_id ); ?>">Browse Templates</a>
+		<?php
+		if ( isset( $param['modal'] ) && isset( $param['modal_id'] ) ) {
+			?>
+			<a href="#TB_inline?&width=630&height=550&inlineId=<?php echo esc_attr( $param['modal_id'] ); ?>" class="mightyshare-template-options-button thickbox button button-secondary" data-optionsfor="<?php echo esc_attr( $param['modal_id'] ); ?>"><?php echo esc_html( $param['modal'] ); ?></a>
+			<?php
+		}
+		?>
 		<div class="mightyshare-image-preview"></div>
+		<?php
+	}
+
+	if ( isset( $param['description'] ) ) {
+		?>
+		<p class="mightyshare-description description"><?php echo wp_kses_post( $param['description'] ); ?></p>
 		<?php
 	}
 }
@@ -130,6 +143,11 @@ function render_mightyshare_text_field( $param, $value = '', $prefix = '' ) {
 	?>
 	<input type="text" value="<?php echo esc_attr( $value ); ?>" id="<?php echo esc_attr( $prefix . $param['id'] ); ?>" name="<?php echo esc_attr( $param['id'] ); ?>" class="<?php echo esc_attr( ( ! empty( $param['classes'] ) ? ' ' . $param['classes'] : '' ) ); ?>" value="<?php echo esc_attr( $value ); ?>">
 	<?php
+	if ( isset( $param['description'] ) ) {
+		?>
+		<p class="mightyshare-description description"><?php echo wp_kses_post( $param['description'] ); ?></p>
+		<?php
+	}
 }
 
 function render_mightyshare_color_field( $param, $value = '', $prefix = '' ) {
@@ -139,13 +157,24 @@ function render_mightyshare_color_field( $param, $value = '', $prefix = '' ) {
 	?>
 	<input type="text" value="<?php echo esc_attr( $value ); ?>" id="<?php echo esc_attr( $prefix . $param['id'] ); ?>" name="<?php echo esc_attr( $param['id'] ); ?>" class="mightyshare_color_field<?php echo esc_attr( ( ! empty( $param['classes'] ) ? ' ' . $param['classes'] : '' ) ); ?>" value="<?php echo esc_attr( $value ); ?>">
 	<?php
+	if ( isset( $param['description'] ) ) {
+		?>
+		<p class="mightyshare-description description"><?php echo wp_kses_post( $param['description'] ); ?></p>
+		<?php
+	}
 }
 
 function render_mightyshare_checkbox_field( $param, $value = '', $prefix = '' ) {
 
 	$value = ( 'yes' === $value || ( ! $value && isset( $param['default'] ) && 'yes' === $param['default'] ) ) ? 'yes' : 'no';
 	$label = ! empty( $param['short_description'] ) ? $param['short_description'] : '';
-	$id = ! empty( $param['id'] ) ? $param['id'] : uniqid();
+	$id    = ! empty( $param['id'] ) ? $param['id'] : uniqid();
+
+	if ( ! empty( $param['label'] ) ) {
+		?>
+		<label for="<?php echo esc_attr( $prefix . $id ); ?>" class="mightyshare-label checkbox <?php echo esc_attr( ( ! empty( $param['classes'] ) ? $param['classes'] : '' ) ); ?>">
+		<?php
+	}
 	?>
 	<input type="checkbox"
 		id="<?php echo esc_attr( $prefix . $id ); ?>"
@@ -154,12 +183,24 @@ function render_mightyshare_checkbox_field( $param, $value = '', $prefix = '' ) 
 			value="<?php echo esc_attr( $param['set_value'] ); ?>"
 		<?php }; ?>
 		<?php echo checked( 'yes', $value, false ); ?> />
-	<?php
-	if ( ! empty( $param['label'] ) ) {
-		?>
-		<label for="<?php echo esc_attr( $prefix . $id ); ?>" class="mightyshare-label checkbox"> <?php echo esc_attr( $label ); ?></label>
 		<?php
-	}
+		if ( ! empty( $param['classes'] ) && 'mightyshare-toggler-wrapper' === $param['classes'] ) {
+			?>
+			<div class="toggler-slider"><div class="toggler-knob"></div></div>
+			<?php
+		}
+		if ( ! empty( $param['label'] ) ) {
+			echo esc_attr( $label );
+			?>
+			</label>
+			<?php
+		}
+
+		if ( isset( $param['description'] ) ) {
+			?>
+			<p class="mightyshare-description description"><?php echo wp_kses_post( $param['description'] ); ?></p>
+			<?php
+		}
 }
 
 function render_mightyshare_image_field( $param, $value = '', $prefix = '' ) {
@@ -190,4 +231,9 @@ function render_mightyshare_image_field( $param, $value = '', $prefix = '' ) {
 		<a href="javascript:void(0)" class="mightyshare-remove-img-button" style="display:inline-block;display:<?php echo esc_attr( $display ); ?>"><?php echo esc_attr( __( 'Remove image', 'mightyshare' ) ); ?></a>
 	</div>
 	<?php
+	if ( isset( $param['description'] ) ) {
+		?>
+		<p class="mightyshare-description description"><?php echo wp_kses_post( $param['description'] ); ?></p>
+		<?php
+	}
 }

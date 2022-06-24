@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.1.3
+ * Version: 1.2.0
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.1.3' );
+define( 'MIGHTYSHARE_VERSION', '1.2.0' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
@@ -147,7 +147,7 @@ class Mightyshare_Plugin_Options {
 			return $data;
 		}
 
-		if ( 'options' === $data['current_settings_page_name'] ) {
+		if ( isset( $data['current_settings_page_name'] ) && 'options' === $data['current_settings_page_name'] ) {
 			$checkboxes = array(
 				'enable_mightyshare',
 				'enable_description',
@@ -158,6 +158,41 @@ class Mightyshare_Plugin_Options {
 				if ( empty ( $data[$checkbox] ) ) {
 					unset( $existing[$checkbox] );
 				}
+			}
+		}
+
+		if ( isset( $data['mightyshare_api_key'] ) && ! empty( $data['mightyshare_api_key'] ) ) {
+			$body = [
+					'apikey'  => $data['mightyshare_api_key'],
+			];
+			$body = wp_json_encode( $body );
+
+			$response = wp_remote_post( 'https://api.mightyshare.io/validate-key/', array(
+					'method'      => 'POST',
+					'timeout'     => 2,
+					'blocking'    => true,
+					'httpversion' => '1.0',
+					'body'        => $body,
+					'headers'     => array(
+						'Content-Type' => 'application/json',
+					),
+				)
+			);
+
+			if ( is_wp_error( $response ) ) {
+					$error_message = $response->get_error_message();
+					echo "Unable to fetch API Key details: $error_message";
+			} else {
+					$mightyshare_plan_response = json_decode( $response['body'] );
+					if ( isset( $mightyshare_plan_response->plan_type ) ){
+						$data['plan_type'] = $mightyshare_plan_response->plan_type;
+					}
+					if ( isset( $mightyshare_plan_response->message ) ){
+						$data['plan_message'] = $mightyshare_plan_response->message;
+					}
+					if ( isset( $mightyshare_plan_response->type ) ){
+						$data['plan_response_type'] = $mightyshare_plan_response->type;
+					}
 			}
 		}
 
@@ -221,6 +256,26 @@ class Mightyshare_Plugin_Options {
 			array( 'label_for' => 'mightyshare_default_template' )
 		);
 
+		$options = get_option( 'mightyshare' );
+		$setting_prefix = array(
+			'name'  => 'mightyshare',
+			'value' => $options,
+		);
+
+		$mightyshare_globals                  = new Mightyshare_Globals();
+		$mightyshare_template_display_options = $mightyshare_globals->mightyshare_template_options( 'default', $setting_prefix );
+
+		if ( ! empty( $mightyshare_template_display_options ) ) {
+			add_settings_section(
+				'mightyshare_template_default_modal',
+				'MightyShare Default',
+				false,
+				'mightyshare'
+			);
+		}
+
+		$this->mightyshare_register_settings_fields( $mightyshare_template_display_options, 'mightyshare_template_default_modal' );
+/*
 		add_settings_field(
 			'default_primary_color',
 			__( 'Primary Color', 'mightyshare' ),
@@ -252,7 +307,7 @@ class Mightyshare_Plugin_Options {
 			'mightyshare',
 			'display'
 		);
-
+*/
 		add_settings_section(
 			'opengraph',
 			__( 'Open Graph Settings', 'mightyshare' ),
@@ -313,6 +368,7 @@ class Mightyshare_Plugin_Options {
 
 				$this->mightyshare_settings_section( 'mightyshare', 'general' );
 				$this->mightyshare_settings_section( 'mightyshare', 'display' );
+				$this->mightyshare_settings_section( 'mightyshare', 'mightyshare_template_default_modal', 'mightyshare-template-options-default' );
 				$this->mightyshare_settings_section( 'mightyshare', 'opengraph' );
 
 				submit_button();
@@ -342,6 +398,11 @@ class Mightyshare_Plugin_Options {
 
 						foreach ( $enabled_value as $key => $value ) {
 
+							$setting_prefix = array(
+								'name'  => 'mightyshare[post_type_overwrites][' . $enabled_key . '][' . $key . ']',
+								'value' => ( ! empty( $options['post_type_overwrites'][ $enabled_key ][ $key ] ) ) ? $options['post_type_overwrites'][ $enabled_key ][ $key ] : '',
+							);
+
 							add_settings_section(
 								$key,
 								$value->label,
@@ -354,10 +415,12 @@ class Mightyshare_Plugin_Options {
 									'label'         => 'Enabled for ' . $value->label . '?',
 									'weight'        => 1,
 									'field_type'    => 'render_mightyshare_checkbox_field',
+									'prefix'        => $key . '-',
 									'value'         => ( ! empty( $options['enabled_on'][ $enabled_key ] ) && in_array( $key, $options['enabled_on'][ $enabled_key ], true ) ) ? 'yes' : '',
 									'field_options' => array(
 										'id'        => 'mightyshare[enabled_on][' . $enabled_key . '][]',
-										'classes'   => 'mightyshare_enabled_field',
+										'classes'   => 'mightyshare-toggler-wrapper',
+										'label'     => true,
 										'set_value' => $key,
 									),
 								),
@@ -365,88 +428,34 @@ class Mightyshare_Plugin_Options {
 									'label'         => 'Template Overwrite',
 									'weight'        => 4,
 									'field_type'    => 'render_mightyshare_select_field',
-									'value'         => ( ! empty( $options['post_type_overwrites'][ $enabled_key ][ $key ]['template'] ) ) ? $options['post_type_overwrites'][ $enabled_key ][ $key ]['template'] : '',
+									'value'         => ( ! empty( $setting_prefix['value']['template'] ) ) ? $setting_prefix['value']['template'] : '',
 									'field_options' => array(
-										'id'      => 'mightyshare[post_type_overwrites][' . $enabled_key . '][' . $key . '][template]',
-										'classes' => 'mightyshare_template_field',
-										'options' => $template_options,
-									),
-								),
-								'primary_color' => array(
-									'label'         => 'Primary Color Overwrite',
-									'weight'        => 6,
-									'field_type'    => 'render_mightyshare_color_field',
-									'value'         => ( ! empty( $options['post_type_overwrites'][ $enabled_key ][ $key ]['primary_color'] ) ) ? $options['post_type_overwrites'][ $enabled_key ][ $key ]['primary_color'] : '',
-									'field_options' => array(
-										'id'      => 'mightyshare[post_type_overwrites][' . $enabled_key . '][' . $key . '][primary_color]',
-										'classes' => '',
-									),
-								),
-								'logo' => array(
-									'label'         => 'Logo Overwrite',
-									'weight'        => 8,
-									'field_type'    => 'render_mightyshare_image_field',
-									'value'         => ( ! empty( $options['post_type_overwrites'][ $enabled_key ][ $key ]['logo'] ) ) ? $options['post_type_overwrites'][ $enabled_key ][ $key ]['logo'] : '',
-									'field_options' => array(
-										'id'      => 'mightyshare[post_type_overwrites][' . $enabled_key . '][' . $key . '][logo]',
-										'classes' => '',
-										'options' => $template_options,
-									),
-								),
-								'background' => array(
-									'label'         => 'Fallback Image Overwrite',
-									'weight'        => 10,
-									'field_type'    => 'render_mightyshare_image_field',
-									'value'         => ( ! empty( $options['post_type_overwrites'][ $enabled_key ][ $key ]['background'] ) ) ? $options['post_type_overwrites'][ $enabled_key ][ $key ]['background'] : '',
-									'field_options' => array(
-										'id'      => 'mightyshare[post_type_overwrites][' . $enabled_key . '][' . $key . '][background]',
-										'classes' => '',
-										'options' => $template_options,
+										'id'       => $setting_prefix['name'] . '[template]',
+										'classes'  => 'mightyshare_template_field',
+										'options'  => $template_options,
+										'modal'    => 'Template Options',
+										'modal_id' => 'mightyshare-template-options-'.$enabled_key.'-' . $key,
 									),
 								),
 							);
 
-							if ( 'WP_Post_Type' === get_class( $value ) || 'WP_Taxonomy' === get_class( $value ) ) {
-								$mightyshare_display_options['description'] =
-									array(
-										'label'         => 'Use Post Excert as Subheading in Compatible Templates?',
-										'weight'        => 7,
-										'field_type'    => 'render_mightyshare_checkbox_field',
-										'value'         => ( ! empty( $options['post_type_overwrites'][ $enabled_key ][ $key ]['enable_description'] ) ) ? 'yes' : '',
-										'field_options' => array(
-											'id'        => 'mightyshare[post_type_overwrites][' . $enabled_key . '][' . $key . '][enable_description]',
-											'classes'   => '',
-											'default'   => 'no',
-											'set_value' => 'yes',
-										),
-									);
+							$this->mightyshare_register_settings_fields( $mightyshare_display_options, $key );
+							$this->mightyshare_settings_section( 'mightyshare', $key );
 
-									if ( 'WP_Taxonomy' === get_class( $value ) ) {
-										$mightyshare_display_options['description']['label'] = 'Use Taxonomy Description as Subheading in Compatible Templates?';
-									}
-							}
+							$mightyshare_globals                  = new Mightyshare_Globals();
+							$mightyshare_template_display_options = $mightyshare_globals->mightyshare_template_options( $value, $setting_prefix );
 
-							usort( $mightyshare_display_options, function( $a, $b ) {
-									return $a['weight'] <=> $b['weight'];
-								}
-							);
-
-							foreach ( $mightyshare_display_options as $display_key => $display_value ) {
-
-								add_settings_field(
-									$display_key,
-									$display_value['label'],
-									function( $display_value ) {
-										$display_value['field_type']( $display_value['field_options'], $display_value['value'] );
-									},
-									'mightyshare',
-									$key,
-									$display_value
+							if ( ! empty( $mightyshare_template_display_options ) ) {
+								add_settings_section(
+									$key.'_modal',
+									$value->label,
+									false,
+									'mightyshare'
 								);
 							}
 
-							$this->mightyshare_settings_section( 'mightyshare', $key );
-
+							$this->mightyshare_register_settings_fields( $mightyshare_template_display_options, $key.'_modal' );
+							$this->mightyshare_settings_section( 'mightyshare', $key.'_modal', 'mightyshare-template-options-' . $enabled_key . '-' . $key );
 						}
 					}
 				}
@@ -463,6 +472,7 @@ class Mightyshare_Plugin_Options {
 
 		<style>#mightyshare-admin-header{display:flex;align-items:center;background:#2e66d2;margin:0 0 10px -20px;padding:0 20px 0 22px;overflow:hidden}#mightyshare-page-title{font-size:24px;color:#fff}#mightyshare-admin-header #mightyshare-admin-header-buttons{text-transform:uppercase;line-height:60px;height:60px;display:flex;flex-grow:1;justify-content:flex-end;align-items:center;margin:0 0 0 20px}#mightyshare-admin-header #mightyshare-admin-header-buttons a{padding:8px 10px;color:#fff;text-decoration:none;margin:0 0 0 10px;line-height:normal;font-size:13px;border-radius:3px}#mightyshare-admin-header #mightyshare-admin-header-buttons a.mightyshare-active,#mightyshare-admin-header #mightyshare-admin-header-buttons a:hover{background:rgba(0,0,0,.3)}#mightyshare-admin-header #mightyshare-admin-header-notice{float:right;color:#fff;line-height:60px}#mightyshare-admin-header #mightyshare-admin-header-notice a{color:#fff;font-weight:700}#mightyshare-settings-page .mightyshare-settings-section h2{font-weight:bold;font-size:18px;line-height:normal;margin:0;padding-bottom:15px;border-bottom:1px solid #e8eef1}@media all and (max-width:782px){#mightyshare-page-title{font-size:18px}}.mightyshare-image-preview img{border:1px solid #000;margin-top:0.6em;max-width: 320px;max-height:220px;}#mightyshare-settings-page .notice {margin: 10px 0px;}.form-table td label {display:initial;}
 		.mightyshare-settings-section .mightyshare-toggler-wrapper{display:block;width:45px;height:25px;cursor:pointer;position:relative}.mightyshare-toggler-wrapper input[type=checkbox]{display:none}.mightyshare-toggler-wrapper input[type=checkbox]:checked+.toggler-slider{background-color:#2e66d2}.mightyshare-toggler-wrapper .toggler-slider{background-color:#ccc;position:absolute;border-radius:100px;top:0;left:0;width:100%;height:100%;-webkit-transition:all .18s ease;transition:all .18s ease}.mightyshare-toggler-wrapper .toggler-knob{position:absolute;-webkit-transition:all .18s ease;transition:all .18s ease;width:calc(25px - 6px);height:calc(25px - 6px);border-radius:50%;left:3px;top:3px;background-color:#fff}.mightyshare-toggler-wrapper input[type=checkbox]:checked+.toggler-slider .toggler-knob{left:calc(100% - 19px - 3px)}.postbox{border-color:#d1d6d9;border-radius:2px;}.mightyshare-label.checkbox{margin-right:10px;}.mightyshare-upload-img-button img{background:#e9eef0;padding:0.5em;}.mightyshare-description{max-width:540px;}#mightyshare-api-key-status.loaded{display:block}#mightyshare-api-key-status.loaded.success{color:#27ae60;}#mightyshare-api-key-status.loaded.fail{color:#c0392b;}
+		.mightyshare-template-picker{display:grid;grid-template-columns:1fr 1fr;gap:.5em}.mightyshare-template-picker img{max-width:100%;height:auto}.mightyshare-template-picker .title{font-weight:700;padding:.3em 1em .5em 1em;text-align:center}.mightyshare-template-picker .template-block{border:3px solid transparent;cursor:pointer;padding:.5em}.mightyshare-template-picker .template-block:hover{border-color:#dcdcde;background-color:#efefef}.mightyshare-template-picker .template-block.active{border-color:#5dade2;background-color:#d6eaf8}.paid-only{pointer-events:none;opacity:0.5;}
 		</style>
 		<?php add_thickbox(); ?>
 		<div id="mightyshare-template-picker" style="display:none;">
@@ -483,15 +493,27 @@ class Mightyshare_Plugin_Options {
 			</div>
 		</div>
 		<?php
-		$options = get_option( 'mightyshare' );
-		if ( isset( $options['mightyshare_api_key'] ) && ! empty( $options['mightyshare_api_key'] ) ) {
-			?>
-			<script>
-			document.addEventListener('DOMContentLoaded', function () {
-				mightyshareApiKeyCheck('<?php echo esc_attr( $options['mightyshare_api_key'] ); ?>');
-			}, false);
-			</script>
-			<?php
+	}
+
+	// Loop through array and configure settings page.
+	public function mightyshare_register_settings_fields( $fields, $key ) {
+		uasort( $fields, function( $a, $b ) {
+				return $a['weight'] <=> $b['weight'];
+			}
+		);
+		foreach ( $fields as $display_key => $display_value ) {
+			add_settings_field(
+				$display_key,
+				$display_value['label'],
+				function( $display_value ) {
+					if ( ! empty( $display_value['field_type'] ) ){
+						$display_value['field_type']( $display_value['field_options'], $display_value['value'], ( ! empty( $display_value['prefix'] ) ) ? $display_value['prefix'] : '' );
+					}
+				},
+				'mightyshare',
+				$key,
+				$display_value
+			);
 		}
 	}
 
@@ -529,7 +551,7 @@ class Mightyshare_Plugin_Options {
 		// Field output.
 		?>
 		<input type="<?php echo esc_attr( $field_type ); ?>" name="mightyshare[mightyshare_api_key]" class="regular-text	mightyshare_api_key_field" placeholder="<?php echo esc_attr( __( 'API KEY', 'mightyshare' ) ); ?>" id="mightyshare_api_key_field" value="<?php echo esc_attr( $value_api_key ); ?>"> <label><input type="checkbox" onclick="toggleApiKeyFieldMask('.mightyshare_api_key_field')" <?php echo esc_attr( $checked ); ?>> <?php echo wp_kses_post( __( 'Display API Key', 'mightyshare' ) ); ?></label>
-		<p class="mightyshare-description description"><span id="mightyshare-api-key-status"></span><?php echo wp_kses_post( __( 'Your MightyShare.io API Key. <br /><small>Don\'t have an API Key? <a href="https://mightyshare.io/register" rel="nofollow noopener" target="_blank">Get a free MightyShare API Key</a></small>', 'mightyshare' ) ); ?></p>
+		<p class="mightyshare-description description"><span id="mightyshare-api-key-status" class="loaded <?php echo esc_attr( $options['plan_response_type'] ); ?>"><?php echo esc_html( $options['plan_message'] ); ?></span><?php echo wp_kses_post( __( 'Your MightyShare.io API Key. <br /><small>Don\'t have an API Key? <a href="https://mightyshare.io/register" rel="nofollow noopener" target="_blank">Get a free MightyShare API Key</a></small>', 'mightyshare' ) ); ?></p>
 		<?php
 	}
 
@@ -598,96 +620,15 @@ class Mightyshare_Plugin_Options {
 		$value = isset( $options['default_template'] ) ? $options['default_template'] : '';
 
 		$field_options = array(
-			'id'      => 'mightyshare[default_template]',
-			'classes' => 'mightyshare_template_field',
-			'options' => $template_options,
+			'id'       => 'mightyshare[default_template]',
+			'classes'  => 'mightyshare_template_field',
+			'options'  => $template_options,
+			'modal'    => 'Template Options',
+			'modal_id' => 'mightyshare-template-options-default',
 		);
 
 		// Field output.
 		render_mightyshare_select_field( $field_options, $value );
-		?>
-		<?php
-	}
-
-	public function render_default_primary_color_field() {
-
-		// Retrieve data from the database.
-		$options = get_option( 'mightyshare' );
-
-		// Set default value.
-		if ( empty( $options ) ) {
-			$value = '#ffca39';
-		} else {
-			$value = isset( $options['default_primary_color'] ) ? $options['default_primary_color'] : '#ffca39';
-		}
-
-		// Field output.
-		$field_options = array(
-			'id' => 'mightyshare[default_primary_color]',
-		);
-
-		render_mightyshare_color_field( $field_options, $value );
-		?>
-			<p class="mightyshare-description description"><?php echo esc_html( __( 'Primary color used in templates (typically the border color).', 'mightyshare' ) ); ?></p>
-		<?php
-	}
-
-	public function render_enable_description_field() {
-
-		// Retrieve data from the database.
-		$options = get_option( 'mightyshare' );
-
-		// Set default value.
-		$value = ( ! empty( $options['enable_description'] ) ) ? 'yes' : 'no';
-
-		// Field output.
-		render_mightyshare_checkbox_field(
-			array(
-				'id'        => 'mightyshare[enable_description]',
-				'default'   => 'no',
-				'set_value' => 'yes',
-			),
-			$value
-		);
-		?>
-			<p class="mightyshare-description description"><?php echo esc_html( __( 'Display a subheading in compatible templates (uses the post excerpt).', 'mightyshare' ) ); ?></p>
-		<?php
-	}
-
-	public function render_logo_field() {
-		// Retrieve data from the database.
-		$options = get_option( 'mightyshare' );
-
-		$value = isset( $options['logo'] ) ? $options['logo'] : '';
-
-		// Field output.
-		render_mightyshare_image_field(
-			array(
-				'id' => 'mightyshare[logo]',
-			),
-			$value
-		);
-		?>
-		<p class="mightyshare-description description"><?php echo wp_kses_post( __( 'Your logo to be used in templates.', 'mightyshare' ) ); ?></p>
-		<?php
-	}
-
-	public function render_fallback_image_field() {
-		// Retrieve data from the database.
-		$options = get_option( 'mightyshare' );
-
-		$value = isset( $options['fallback_image'] ) ? $options['fallback_image'] : '';
-
-		// Field output.
-		render_mightyshare_image_field(
-			array(
-				'id' => 'mightyshare[fallback_image]',
-			),
-			$value
-		);
-		?>
-		<p class="mightyshare-description description"><?php echo wp_kses_post( __( 'By default templates will use your post/page featured image. Set a fallback photo to be used if a post/page has no set featured image.', 'mightyshare' ) ); ?></p>
-		<?php
 	}
 
 	public function render_detected_seo_plugin_field() {
@@ -727,6 +668,8 @@ class Mightyshare_Plugin_Options {
 				'id'        => 'mightyshare[output_opengraph]',
 				'default'   => 'no',
 				'set_value' => 'yes',
+				'classes'   => 'mightyshare-toggler-wrapper',
+				'label'     => true,
 			),
 			$value
 		);
@@ -736,19 +679,31 @@ class Mightyshare_Plugin_Options {
 	}
 
 	// Render Template Section.
-	public function mightyshare_settings_section( $page, $section ) {
+	public function mightyshare_settings_section( $page, $section, $model_id = null ) {
 		global $wp_settings_sections;
 
 		if ( ! empty( $wp_settings_sections[ $page ][ $section ] ) ) {
+			if ( isset( $model_id ) ) {
+				?>
+				<div id="<?php echo esc_attr( $model_id ); ?>" style="display:none;">
+					<div class="mightyshare-options-modal mightyshare-settings-section">
+						<h2><?php echo esc_attr( $wp_settings_sections[ $page ][ $section ]['title'] ); ?> Template Options</h2>
+				<?php
+			}else{
+				?>
+				<div class="postbox">
+					<div class="mightyshare-settings-section inside">
+					<h2><?php echo esc_attr( $wp_settings_sections[ $page ][ $section ]['title'] ); ?></h2>
+				<?php
+			}
 			?>
-			<div class="postbox"><div class="mightyshare-settings-section inside">
-			<h2><?php echo esc_attr( $wp_settings_sections[ $page ][ $section ]['title'] ); ?></h2>
-			<table class="form-table">
-			<tbody>
-			<?php do_settings_fields( $page, $section ); ?>
-			</tbody>
-			</table>
-			</div></div>
+				<table class="form-table">
+					<tbody>
+						<?php do_settings_fields( $page, $section ); ?>
+					</tbody>
+				</table>
+				</div>
+			</div>
 			<?php
 		}
 	}
@@ -970,6 +925,16 @@ class Mightyshare_Frontend {
 			);
 		}
 
+		if ( ! empty( $template_parts['primary_font'] ) ) {
+			array_push(
+				$template_json,
+				array(
+					'name'  => 'google_font',
+					'google_font' => str_replace(' ', '+', $template_parts['primary_font'] ),
+				)
+			);
+		}
+
 		if ( ! empty( $template_parts['primary_color'] ) ) {
 			array_push(
 				$template_json,
@@ -1005,6 +970,7 @@ class Mightyshare_Frontend {
 		// Defaults.
 		$returned_template_parts['is_enabled']    = false;
 		$returned_template_parts['template']      = isset( $options['default_template'] ) ? $options['default_template'] : '';
+		$returned_template_parts['primary_font']  = isset( $options['primary_font'] ) ? $options['primary_font'] : '';
 		$returned_template_parts['primary_color'] = isset( $options['default_primary_color'] ) ? $options['default_primary_color'] : '';
 		$returned_template_parts['logo']          = isset( $options['logo'] ) ? $options['logo'] : '';
 		$returned_template_parts['background']    = isset( $options['fallback_image'] ) ? $options['fallback_image'] : '';
@@ -1069,9 +1035,14 @@ class Mightyshare_Frontend {
 			}
 		}
 
-		// Check is subheadings are enabled
+		// Check is subheadings are enabled.
 		if ( empty( $returned_template_parts['enable_description'] ) ) {
 			$returned_template_parts['description'] = null;
+		}
+
+		// Disable font picked if set to template-default.
+		if ( ! empty( $returned_template_parts['primary_font'] ) && 'template-default' === $returned_template_parts['primary_font'] ) {
+			$returned_template_parts['primary_font'] = null;
 		}
 
 		// Apply filters of the render for devs.
@@ -1108,5 +1079,1527 @@ class Mightyshare_Globals {
 		);
 
 		return $theme_options;
+	}
+
+	public function mightyshare_template_options( $value, $setting_prefix ) {
+		$options             = get_option( 'mightyshare' );
+		$mightyshare_globals = new Mightyshare_Globals();
+		$template_options    = $mightyshare_globals->mightyshare_templates();
+
+		$google_fonts_list = array(
+			'' => 'Default',
+			'template-default' => 'Template Default',
+			'ABeeZee' => 'ABeeZee',
+			'Abel' => 'Abel',
+			'Abhaya Libre' => 'Abhaya Libre',
+			'Abril Fatface' => 'Abril Fatface',
+			'Aclonica' => 'Aclonica',
+			'Acme' => 'Acme',
+			'Actor' => 'Actor',
+			'Adamina' => 'Adamina',
+			'Advent Pro' => 'Advent Pro',
+			'Aguafina Script' => 'Aguafina Script',
+			'Akaya Kanadaka' => 'Akaya Kanadaka',
+			'Akaya Telivigala' => 'Akaya Telivigala',
+			'Akronim' => 'Akronim',
+			'Akshar' => 'Akshar',
+			'Aladin' => 'Aladin',
+			'Alata' => 'Alata',
+			'Alatsi' => 'Alatsi',
+			'Aldrich' => 'Aldrich',
+			'Alef' => 'Alef',
+			'Alegreya' => 'Alegreya',
+			'Alegreya SC' => 'Alegreya SC',
+			'Alegreya Sans' => 'Alegreya Sans',
+			'Alegreya Sans SC' => 'Alegreya Sans SC',
+			'Aleo' => 'Aleo',
+			'Alex Brush' => 'Alex Brush',
+			'Alfa Slab One' => 'Alfa Slab One',
+			'Alice' => 'Alice',
+			'Alike' => 'Alike',
+			'Alike Angular' => 'Alike Angular',
+			'Allan' => 'Allan',
+			'Allerta' => 'Allerta',
+			'Allerta Stencil' => 'Allerta Stencil',
+			'Allison' => 'Allison',
+			'Allura' => 'Allura',
+			'Almarai' => 'Almarai',
+			'Almendra' => 'Almendra',
+			'Almendra Display' => 'Almendra Display',
+			'Almendra SC' => 'Almendra SC',
+			'Alumni Sans' => 'Alumni Sans',
+			'Alumni Sans Inline One' => 'Alumni Sans Inline One',
+			'Amarante' => 'Amarante',
+			'Amaranth' => 'Amaranth',
+			'Amatic SC' => 'Amatic SC',
+			'Amethysta' => 'Amethysta',
+			'Amiko' => 'Amiko',
+			'Amiri' => 'Amiri',
+			'Amita' => 'Amita',
+			'Anaheim' => 'Anaheim',
+			'Andada Pro' => 'Andada Pro',
+			'Andika' => 'Andika',
+			'Andika New Basic' => 'Andika New Basic',
+			'Anek Bangla' => 'Anek Bangla',
+			'Anek Devanagari' => 'Anek Devanagari',
+			'Anek Gujarati' => 'Anek Gujarati',
+			'Anek Gurmukhi' => 'Anek Gurmukhi',
+			'Anek Kannada' => 'Anek Kannada',
+			'Anek Latin' => 'Anek Latin',
+			'Anek Malayalam' => 'Anek Malayalam',
+			'Anek Odia' => 'Anek Odia',
+			'Anek Tamil' => 'Anek Tamil',
+			'Anek Telugu' => 'Anek Telugu',
+			'Angkor' => 'Angkor',
+			'Annie Use Your Telescope' => 'Annie Use Your Telescope',
+			'Anonymous Pro' => 'Anonymous Pro',
+			'Antic' => 'Antic',
+			'Antic Didone' => 'Antic Didone',
+			'Antic Slab' => 'Antic Slab',
+			'Anton' => 'Anton',
+			'Antonio' => 'Antonio',
+			'Anybody' => 'Anybody',
+			'Arapey' => 'Arapey',
+			'Arbutus' => 'Arbutus',
+			'Arbutus Slab' => 'Arbutus Slab',
+			'Architects Daughter' => 'Architects Daughter',
+			'Archivo' => 'Archivo',
+			'Archivo Black' => 'Archivo Black',
+			'Archivo Narrow' => 'Archivo Narrow',
+			'Are You Serious' => 'Are You Serious',
+			'Aref Ruqaa' => 'Aref Ruqaa',
+			'Arima Madurai' => 'Arima Madurai',
+			'Arimo' => 'Arimo',
+			'Arizonia' => 'Arizonia',
+			'Armata' => 'Armata',
+			'Arsenal' => 'Arsenal',
+			'Artifika' => 'Artifika',
+			'Arvo' => 'Arvo',
+			'Arya' => 'Arya',
+			'Asap' => 'Asap',
+			'Asap Condensed' => 'Asap Condensed',
+			'Asar' => 'Asar',
+			'Asset' => 'Asset',
+			'Assistant' => 'Assistant',
+			'Astloch' => 'Astloch',
+			'Asul' => 'Asul',
+			'Athiti' => 'Athiti',
+			'Atkinson Hyperlegible' => 'Atkinson Hyperlegible',
+			'Atma' => 'Atma',
+			'Atomic Age' => 'Atomic Age',
+			'Aubrey' => 'Aubrey',
+			'Audiowide' => 'Audiowide',
+			'Autour One' => 'Autour One',
+			'Average' => 'Average',
+			'Average Sans' => 'Average Sans',
+			'Averia Gruesa Libre' => 'Averia Gruesa Libre',
+			'Averia Libre' => 'Averia Libre',
+			'Averia Sans Libre' => 'Averia Sans Libre',
+			'Averia Serif Libre' => 'Averia Serif Libre',
+			'Azeret Mono' => 'Azeret Mono',
+			'B612' => 'B612',
+			'B612 Mono' => 'B612 Mono',
+			'BIZ UDGothic' => 'BIZ UDGothic',
+			'BIZ UDMincho' => 'BIZ UDMincho',
+			'BIZ UDPGothic' => 'BIZ UDPGothic',
+			'BIZ UDPMincho' => 'BIZ UDPMincho',
+			'Babylonica' => 'Babylonica',
+			'Bad Script' => 'Bad Script',
+			'Bahiana' => 'Bahiana',
+			'Bahianita' => 'Bahianita',
+			'Bai Jamjuree' => 'Bai Jamjuree',
+			'Bakbak One' => 'Bakbak One',
+			'Ballet' => 'Ballet',
+			'Baloo 2' => 'Baloo 2',
+			'Baloo Bhai 2' => 'Baloo Bhai 2',
+			'Baloo Bhaijaan 2' => 'Baloo Bhaijaan 2',
+			'Baloo Bhaina 2' => 'Baloo Bhaina 2',
+			'Baloo Chettan 2' => 'Baloo Chettan 2',
+			'Baloo Da 2' => 'Baloo Da 2',
+			'Baloo Paaji 2' => 'Baloo Paaji 2',
+			'Baloo Tamma 2' => 'Baloo Tamma 2',
+			'Baloo Tammudu 2' => 'Baloo Tammudu 2',
+			'Baloo Thambi 2' => 'Baloo Thambi 2',
+			'Balsamiq Sans' => 'Balsamiq Sans',
+			'Balthazar' => 'Balthazar',
+			'Bangers' => 'Bangers',
+			'Barlow' => 'Barlow',
+			'Barlow Condensed' => 'Barlow Condensed',
+			'Barlow Semi Condensed' => 'Barlow Semi Condensed',
+			'Barriecito' => 'Barriecito',
+			'Barrio' => 'Barrio',
+			'Basic' => 'Basic',
+			'Baskervville' => 'Baskervville',
+			'Battambang' => 'Battambang',
+			'Baumans' => 'Baumans',
+			'Bayon' => 'Bayon',
+			'Be Vietnam Pro' => 'Be Vietnam Pro',
+			'Beau Rivage' => 'Beau Rivage',
+			'Bebas Neue' => 'Bebas Neue',
+			'Belgrano' => 'Belgrano',
+			'Bellefair' => 'Bellefair',
+			'Belleza' => 'Belleza',
+			'Bellota' => 'Bellota',
+			'Bellota Text' => 'Bellota Text',
+			'BenchNine' => 'BenchNine',
+			'Benne' => 'Benne',
+			'Bentham' => 'Bentham',
+			'Berkshire Swash' => 'Berkshire Swash',
+			'Besley' => 'Besley',
+			'Beth Ellen' => 'Beth Ellen',
+			'Bevan' => 'Bevan',
+			'BhuTuka Expanded One' => 'BhuTuka Expanded One',
+			'Big Shoulders Display' => 'Big Shoulders Display',
+			'Big Shoulders Inline Display' => 'Big Shoulders Inline Display',
+			'Big Shoulders Inline Text' => 'Big Shoulders Inline Text',
+			'Big Shoulders Stencil Display' => 'Big Shoulders Stencil Display',
+			'Big Shoulders Stencil Text' => 'Big Shoulders Stencil Text',
+			'Big Shoulders Text' => 'Big Shoulders Text',
+			'Bigelow Rules' => 'Bigelow Rules',
+			'Bigshot One' => 'Bigshot One',
+			'Bilbo' => 'Bilbo',
+			'Bilbo Swash Caps' => 'Bilbo Swash Caps',
+			'BioRhyme' => 'BioRhyme',
+			'BioRhyme Expanded' => 'BioRhyme Expanded',
+			'Birthstone' => 'Birthstone',
+			'Birthstone Bounce' => 'Birthstone Bounce',
+			'Biryani' => 'Biryani',
+			'Bitter' => 'Bitter',
+			'Black And White Picture' => 'Black And White Picture',
+			'Black Han Sans' => 'Black Han Sans',
+			'Black Ops One' => 'Black Ops One',
+			'Blaka' => 'Blaka',
+			'Blaka Hollow' => 'Blaka Hollow',
+			'Blinker' => 'Blinker',
+			'Bodoni Moda' => 'Bodoni Moda',
+			'Bokor' => 'Bokor',
+			'Bona Nova' => 'Bona Nova',
+			'Bonbon' => 'Bonbon',
+			'Bonheur Royale' => 'Bonheur Royale',
+			'Boogaloo' => 'Boogaloo',
+			'Bowlby One' => 'Bowlby One',
+			'Bowlby One SC' => 'Bowlby One SC',
+			'Brawler' => 'Brawler',
+			'Bree Serif' => 'Bree Serif',
+			'Brygada 1918' => 'Brygada 1918',
+			'Bubblegum Sans' => 'Bubblegum Sans',
+			'Bubbler One' => 'Bubbler One',
+			'Buda' => 'Buda',
+			'Buenard' => 'Buenard',
+			'Bungee' => 'Bungee',
+			'Bungee Hairline' => 'Bungee Hairline',
+			'Bungee Inline' => 'Bungee Inline',
+			'Bungee Outline' => 'Bungee Outline',
+			'Bungee Shade' => 'Bungee Shade',
+			'Butcherman' => 'Butcherman',
+			'Butterfly Kids' => 'Butterfly Kids',
+			'Cabin' => 'Cabin',
+			'Cabin Condensed' => 'Cabin Condensed',
+			'Cabin Sketch' => 'Cabin Sketch',
+			'Caesar Dressing' => 'Caesar Dressing',
+			'Cagliostro' => 'Cagliostro',
+			'Cairo' => 'Cairo',
+			'Caladea' => 'Caladea',
+			'Calistoga' => 'Calistoga',
+			'Calligraffitti' => 'Calligraffitti',
+			'Cambay' => 'Cambay',
+			'Cambo' => 'Cambo',
+			'Candal' => 'Candal',
+			'Cantarell' => 'Cantarell',
+			'Cantata One' => 'Cantata One',
+			'Cantora One' => 'Cantora One',
+			'Capriola' => 'Capriola',
+			'Caramel' => 'Caramel',
+			'Carattere' => 'Carattere',
+			'Cardo' => 'Cardo',
+			'Carme' => 'Carme',
+			'Carrois Gothic' => 'Carrois Gothic',
+			'Carrois Gothic SC' => 'Carrois Gothic SC',
+			'Carter One' => 'Carter One',
+			'Castoro' => 'Castoro',
+			'Catamaran' => 'Catamaran',
+			'Caudex' => 'Caudex',
+			'Caveat' => 'Caveat',
+			'Caveat Brush' => 'Caveat Brush',
+			'Cedarville Cursive' => 'Cedarville Cursive',
+			'Ceviche One' => 'Ceviche One',
+			'Chakra Petch' => 'Chakra Petch',
+			'Changa' => 'Changa',
+			'Changa One' => 'Changa One',
+			'Chango' => 'Chango',
+			'Charis SIL' => 'Charis SIL',
+			'Charm' => 'Charm',
+			'Charmonman' => 'Charmonman',
+			'Chathura' => 'Chathura',
+			'Chau Philomene One' => 'Chau Philomene One',
+			'Chela One' => 'Chela One',
+			'Chelsea Market' => 'Chelsea Market',
+			'Chenla' => 'Chenla',
+			'Cherish' => 'Cherish',
+			'Cherry Cream Soda' => 'Cherry Cream Soda',
+			'Cherry Swash' => 'Cherry Swash',
+			'Chewy' => 'Chewy',
+			'Chicle' => 'Chicle',
+			'Chilanka' => 'Chilanka',
+			'Chivo' => 'Chivo',
+			'Chonburi' => 'Chonburi',
+			'Cinzel' => 'Cinzel',
+			'Cinzel Decorative' => 'Cinzel Decorative',
+			'Clicker Script' => 'Clicker Script',
+			'Coda' => 'Coda',
+			'Coda Caption' => 'Coda Caption',
+			'Codystar' => 'Codystar',
+			'Coiny' => 'Coiny',
+			'Combo' => 'Combo',
+			'Comfortaa' => 'Comfortaa',
+			'Comforter' => 'Comforter',
+			'Comforter Brush' => 'Comforter Brush',
+			'Comic Neue' => 'Comic Neue',
+			'Coming Soon' => 'Coming Soon',
+			'Commissioner' => 'Commissioner',
+			'Concert One' => 'Concert One',
+			'Condiment' => 'Condiment',
+			'Content' => 'Content',
+			'Contrail One' => 'Contrail One',
+			'Convergence' => 'Convergence',
+			'Cookie' => 'Cookie',
+			'Copse' => 'Copse',
+			'Corben' => 'Corben',
+			'Corinthia' => 'Corinthia',
+			'Cormorant' => 'Cormorant',
+			'Cormorant Garamond' => 'Cormorant Garamond',
+			'Cormorant Infant' => 'Cormorant Infant',
+			'Cormorant SC' => 'Cormorant SC',
+			'Cormorant Unicase' => 'Cormorant Unicase',
+			'Cormorant Upright' => 'Cormorant Upright',
+			'Courgette' => 'Courgette',
+			'Courier Prime' => 'Courier Prime',
+			'Cousine' => 'Cousine',
+			'Coustard' => 'Coustard',
+			'Covered By Your Grace' => 'Covered By Your Grace',
+			'Crafty Girls' => 'Crafty Girls',
+			'Creepster' => 'Creepster',
+			'Crete Round' => 'Crete Round',
+			'Crimson Pro' => 'Crimson Pro',
+			'Crimson Text' => 'Crimson Text',
+			'Croissant One' => 'Croissant One',
+			'Crushed' => 'Crushed',
+			'Cuprum' => 'Cuprum',
+			'Cute Font' => 'Cute Font',
+			'Cutive' => 'Cutive',
+			'Cutive Mono' => 'Cutive Mono',
+			'DM Mono' => 'DM Mono',
+			'DM Sans' => 'DM Sans',
+			'DM Serif Display' => 'DM Serif Display',
+			'DM Serif Text' => 'DM Serif Text',
+			'Damion' => 'Damion',
+			'Dancing Script' => 'Dancing Script',
+			'Dangrek' => 'Dangrek',
+			'Darker Grotesque' => 'Darker Grotesque',
+			'David Libre' => 'David Libre',
+			'Dawning of a New Day' => 'Dawning of a New Day',
+			'Days One' => 'Days One',
+			'Dekko' => 'Dekko',
+			'Dela Gothic One' => 'Dela Gothic One',
+			'Delius' => 'Delius',
+			'Delius Swash Caps' => 'Delius Swash Caps',
+			'Delius Unicase' => 'Delius Unicase',
+			'Della Respira' => 'Della Respira',
+			'Denk One' => 'Denk One',
+			'Devonshire' => 'Devonshire',
+			'Dhurjati' => 'Dhurjati',
+			'Didact Gothic' => 'Didact Gothic',
+			'Diplomata' => 'Diplomata',
+			'Diplomata SC' => 'Diplomata SC',
+			'Do Hyeon' => 'Do Hyeon',
+			'Dokdo' => 'Dokdo',
+			'Domine' => 'Domine',
+			'Donegal One' => 'Donegal One',
+			'Dongle' => 'Dongle',
+			'Doppio One' => 'Doppio One',
+			'Dorsa' => 'Dorsa',
+			'Dosis' => 'Dosis',
+			'DotGothic16' => 'DotGothic16',
+			'Dr Sugiyama' => 'Dr Sugiyama',
+			'Duru Sans' => 'Duru Sans',
+			'Dynalight' => 'Dynalight',
+			'EB Garamond' => 'EB Garamond',
+			'Eagle Lake' => 'Eagle Lake',
+			'East Sea Dokdo' => 'East Sea Dokdo',
+			'Eater' => 'Eater',
+			'Economica' => 'Economica',
+			'Eczar' => 'Eczar',
+			'El Messiri' => 'El Messiri',
+			'Electrolize' => 'Electrolize',
+			'Elsie' => 'Elsie',
+			'Elsie Swash Caps' => 'Elsie Swash Caps',
+			'Emblema One' => 'Emblema One',
+			'Emilys Candy' => 'Emilys Candy',
+			'Encode Sans' => 'Encode Sans',
+			'Encode Sans Condensed' => 'Encode Sans Condensed',
+			'Encode Sans Expanded' => 'Encode Sans Expanded',
+			'Encode Sans SC' => 'Encode Sans SC',
+			'Encode Sans Semi Condensed' => 'Encode Sans Semi Condensed',
+			'Encode Sans Semi Expanded' => 'Encode Sans Semi Expanded',
+			'Engagement' => 'Engagement',
+			'Englebert' => 'Englebert',
+			'Enriqueta' => 'Enriqueta',
+			'Ephesis' => 'Ephesis',
+			'Epilogue' => 'Epilogue',
+			'Erica One' => 'Erica One',
+			'Esteban' => 'Esteban',
+			'Estonia' => 'Estonia',
+			'Euphoria Script' => 'Euphoria Script',
+			'Ewert' => 'Ewert',
+			'Exo' => 'Exo',
+			'Exo 2' => 'Exo 2',
+			'Expletus Sans' => 'Expletus Sans',
+			'Explora' => 'Explora',
+			'Fahkwang' => 'Fahkwang',
+			'Familjen Grotesk' => 'Familjen Grotesk',
+			'Fanwood Text' => 'Fanwood Text',
+			'Farro' => 'Farro',
+			'Farsan' => 'Farsan',
+			'Fascinate' => 'Fascinate',
+			'Fascinate Inline' => 'Fascinate Inline',
+			'Faster One' => 'Faster One',
+			'Fasthand' => 'Fasthand',
+			'Fauna One' => 'Fauna One',
+			'Faustina' => 'Faustina',
+			'Federant' => 'Federant',
+			'Federo' => 'Federo',
+			'Felipa' => 'Felipa',
+			'Fenix' => 'Fenix',
+			'Festive' => 'Festive',
+			'Finger Paint' => 'Finger Paint',
+			'Fira Code' => 'Fira Code',
+			'Fira Mono' => 'Fira Mono',
+			'Fira Sans' => 'Fira Sans',
+			'Fira Sans Condensed' => 'Fira Sans Condensed',
+			'Fira Sans Extra Condensed' => 'Fira Sans Extra Condensed',
+			'Fjalla One' => 'Fjalla One',
+			'Fjord One' => 'Fjord One',
+			'Flamenco' => 'Flamenco',
+			'Flavors' => 'Flavors',
+			'Fleur De Leah' => 'Fleur De Leah',
+			'Flow Block' => 'Flow Block',
+			'Flow Circular' => 'Flow Circular',
+			'Flow Rounded' => 'Flow Rounded',
+			'Fondamento' => 'Fondamento',
+			'Fontdiner Swanky' => 'Fontdiner Swanky',
+			'Forum' => 'Forum',
+			'Francois One' => 'Francois One',
+			'Frank Ruhl Libre' => 'Frank Ruhl Libre',
+			'Fraunces' => 'Fraunces',
+			'Freckle Face' => 'Freckle Face',
+			'Fredericka the Great' => 'Fredericka the Great',
+			'Fredoka' => 'Fredoka',
+			'Fredoka One' => 'Fredoka One',
+			'Freehand' => 'Freehand',
+			'Fresca' => 'Fresca',
+			'Frijole' => 'Frijole',
+			'Fruktur' => 'Fruktur',
+			'Fugaz One' => 'Fugaz One',
+			'Fuggles' => 'Fuggles',
+			'Fuzzy Bubbles' => 'Fuzzy Bubbles',
+			'GFS Didot' => 'GFS Didot',
+			'GFS Neohellenic' => 'GFS Neohellenic',
+			'Gabriela' => 'Gabriela',
+			'Gaegu' => 'Gaegu',
+			'Gafata' => 'Gafata',
+			'Galada' => 'Galada',
+			'Galdeano' => 'Galdeano',
+			'Galindo' => 'Galindo',
+			'Gamja Flower' => 'Gamja Flower',
+			'Gayathri' => 'Gayathri',
+			'Gelasio' => 'Gelasio',
+			'Gemunu Libre' => 'Gemunu Libre',
+			'Genos' => 'Genos',
+			'Gentium Basic' => 'Gentium Basic',
+			'Gentium Book Basic' => 'Gentium Book Basic',
+			'Gentium Plus' => 'Gentium Plus',
+			'Geo' => 'Geo',
+			'Georama' => 'Georama',
+			'Geostar' => 'Geostar',
+			'Geostar Fill' => 'Geostar Fill',
+			'Germania One' => 'Germania One',
+			'Gideon Roman' => 'Gideon Roman',
+			'Gidugu' => 'Gidugu',
+			'Gilda Display' => 'Gilda Display',
+			'Girassol' => 'Girassol',
+			'Give You Glory' => 'Give You Glory',
+			'Glass Antiqua' => 'Glass Antiqua',
+			'Glegoo' => 'Glegoo',
+			'Gloria Hallelujah' => 'Gloria Hallelujah',
+			'Glory' => 'Glory',
+			'Gluten' => 'Gluten',
+			'Goblin One' => 'Goblin One',
+			'Gochi Hand' => 'Gochi Hand',
+			'Goldman' => 'Goldman',
+			'Gorditas' => 'Gorditas',
+			'Gothic A1' => 'Gothic A1',
+			'Gotu' => 'Gotu',
+			'Goudy Bookletter 1911' => 'Goudy Bookletter 1911',
+			'Gowun Batang' => 'Gowun Batang',
+			'Gowun Dodum' => 'Gowun Dodum',
+			'Graduate' => 'Graduate',
+			'Grand Hotel' => 'Grand Hotel',
+			'Grandstander' => 'Grandstander',
+			'Grape Nuts' => 'Grape Nuts',
+			'Gravitas One' => 'Gravitas One',
+			'Great Vibes' => 'Great Vibes',
+			'Grechen Fuemen' => 'Grechen Fuemen',
+			'Grenze' => 'Grenze',
+			'Grenze Gotisch' => 'Grenze Gotisch',
+			'Grey Qo' => 'Grey Qo',
+			'Griffy' => 'Griffy',
+			'Gruppo' => 'Gruppo',
+			'Gudea' => 'Gudea',
+			'Gugi' => 'Gugi',
+			'Gupter' => 'Gupter',
+			'Gurajada' => 'Gurajada',
+			'Gwendolyn' => 'Gwendolyn',
+			'Habibi' => 'Habibi',
+			'Hachi Maru Pop' => 'Hachi Maru Pop',
+			'Hahmlet' => 'Hahmlet',
+			'Halant' => 'Halant',
+			'Hammersmith One' => 'Hammersmith One',
+			'Hanalei' => 'Hanalei',
+			'Hanalei Fill' => 'Hanalei Fill',
+			'Handlee' => 'Handlee',
+			'Hanuman' => 'Hanuman',
+			'Happy Monkey' => 'Happy Monkey',
+			'Harmattan' => 'Harmattan',
+			'Headland One' => 'Headland One',
+			'Heebo' => 'Heebo',
+			'Henny Penny' => 'Henny Penny',
+			'Hepta Slab' => 'Hepta Slab',
+			'Herr Von Muellerhoff' => 'Herr Von Muellerhoff',
+			'Hi Melody' => 'Hi Melody',
+			'Hina Mincho' => 'Hina Mincho',
+			'Hind' => 'Hind',
+			'Hind Guntur' => 'Hind Guntur',
+			'Hind Madurai' => 'Hind Madurai',
+			'Hind Siliguri' => 'Hind Siliguri',
+			'Hind Vadodara' => 'Hind Vadodara',
+			'Holtwood One SC' => 'Holtwood One SC',
+			'Homemade Apple' => 'Homemade Apple',
+			'Homenaje' => 'Homenaje',
+			'Hubballi' => 'Hubballi',
+			'Hurricane' => 'Hurricane',
+			'IBM Plex Mono' => 'IBM Plex Mono',
+			'IBM Plex Sans' => 'IBM Plex Sans',
+			'IBM Plex Sans Arabic' => 'IBM Plex Sans Arabic',
+			'IBM Plex Sans Condensed' => 'IBM Plex Sans Condensed',
+			'IBM Plex Sans Devanagari' => 'IBM Plex Sans Devanagari',
+			'IBM Plex Sans Hebrew' => 'IBM Plex Sans Hebrew',
+			'IBM Plex Sans KR' => 'IBM Plex Sans KR',
+			'IBM Plex Sans Thai' => 'IBM Plex Sans Thai',
+			'IBM Plex Sans Thai Looped' => 'IBM Plex Sans Thai Looped',
+			'IBM Plex Serif' => 'IBM Plex Serif',
+			'IM Fell DW Pica' => 'IM Fell DW Pica',
+			'IM Fell DW Pica SC' => 'IM Fell DW Pica SC',
+			'IM Fell Double Pica' => 'IM Fell Double Pica',
+			'IM Fell Double Pica SC' => 'IM Fell Double Pica SC',
+			'IM Fell English' => 'IM Fell English',
+			'IM Fell English SC' => 'IM Fell English SC',
+			'IM Fell French Canon' => 'IM Fell French Canon',
+			'IM Fell French Canon SC' => 'IM Fell French Canon SC',
+			'IM Fell Great Primer' => 'IM Fell Great Primer',
+			'IM Fell Great Primer SC' => 'IM Fell Great Primer SC',
+			'Ibarra Real Nova' => 'Ibarra Real Nova',
+			'Iceberg' => 'Iceberg',
+			'Iceland' => 'Iceland',
+			'Imbue' => 'Imbue',
+			'Imperial Script' => 'Imperial Script',
+			'Imprima' => 'Imprima',
+			'Inconsolata' => 'Inconsolata',
+			'Inder' => 'Inder',
+			'Indie Flower' => 'Indie Flower',
+			'Ingrid Darling' => 'Ingrid Darling',
+			'Inika' => 'Inika',
+			'Inknut Antiqua' => 'Inknut Antiqua',
+			'Inria Sans' => 'Inria Sans',
+			'Inria Serif' => 'Inria Serif',
+			'Inspiration' => 'Inspiration',
+			'Inter' => 'Inter',
+			'Irish Grover' => 'Irish Grover',
+			'Island Moments' => 'Island Moments',
+			'Istok Web' => 'Istok Web',
+			'Italiana' => 'Italiana',
+			'Italianno' => 'Italianno',
+			'Itim' => 'Itim',
+			'Jacques Francois' => 'Jacques Francois',
+			'Jacques Francois Shadow' => 'Jacques Francois Shadow',
+			'Jaldi' => 'Jaldi',
+			'JetBrains Mono' => 'JetBrains Mono',
+			'Jim Nightshade' => 'Jim Nightshade',
+			'Joan' => 'Joan',
+			'Jockey One' => 'Jockey One',
+			'Jolly Lodger' => 'Jolly Lodger',
+			'Jomhuria' => 'Jomhuria',
+			'Jomolhari' => 'Jomolhari',
+			'Josefin Sans' => 'Josefin Sans',
+			'Josefin Slab' => 'Josefin Slab',
+			'Jost' => 'Jost',
+			'Joti One' => 'Joti One',
+			'Jua' => 'Jua',
+			'Judson' => 'Judson',
+			'Julee' => 'Julee',
+			'Julius Sans One' => 'Julius Sans One',
+			'Junge' => 'Junge',
+			'Jura' => 'Jura',
+			'Just Another Hand' => 'Just Another Hand',
+			'Just Me Again Down Here' => 'Just Me Again Down Here',
+			'K2D' => 'K2D',
+			'Kadwa' => 'Kadwa',
+			'Kaisei Decol' => 'Kaisei Decol',
+			'Kaisei HarunoUmi' => 'Kaisei HarunoUmi',
+			'Kaisei Opti' => 'Kaisei Opti',
+			'Kaisei Tokumin' => 'Kaisei Tokumin',
+			'Kalam' => 'Kalam',
+			'Kameron' => 'Kameron',
+			'Kanit' => 'Kanit',
+			'Kantumruy' => 'Kantumruy',
+			'Karantina' => 'Karantina',
+			'Karla' => 'Karla',
+			'Karma' => 'Karma',
+			'Katibeh' => 'Katibeh',
+			'Kaushan Script' => 'Kaushan Script',
+			'Kavivanar' => 'Kavivanar',
+			'Kavoon' => 'Kavoon',
+			'Kdam Thmor' => 'Kdam Thmor',
+			'Kdam Thmor Pro' => 'Kdam Thmor Pro',
+			'Keania One' => 'Keania One',
+			'Kelly Slab' => 'Kelly Slab',
+			'Kenia' => 'Kenia',
+			'Khand' => 'Khand',
+			'Khmer' => 'Khmer',
+			'Khula' => 'Khula',
+			'Kings' => 'Kings',
+			'Kirang Haerang' => 'Kirang Haerang',
+			'Kite One' => 'Kite One',
+			'Kiwi Maru' => 'Kiwi Maru',
+			'Klee One' => 'Klee One',
+			'Knewave' => 'Knewave',
+			'KoHo' => 'KoHo',
+			'Kodchasan' => 'Kodchasan',
+			'Koh Santepheap' => 'Koh Santepheap',
+			'Kolker Brush' => 'Kolker Brush',
+			'Kosugi' => 'Kosugi',
+			'Kosugi Maru' => 'Kosugi Maru',
+			'Kotta One' => 'Kotta One',
+			'Koulen' => 'Koulen',
+			'Kranky' => 'Kranky',
+			'Kreon' => 'Kreon',
+			'Kristi' => 'Kristi',
+			'Krona One' => 'Krona One',
+			'Krub' => 'Krub',
+			'Kufam' => 'Kufam',
+			'Kulim Park' => 'Kulim Park',
+			'Kumar One' => 'Kumar One',
+			'Kumar One Outline' => 'Kumar One Outline',
+			'Kumbh Sans' => 'Kumbh Sans',
+			'Kurale' => 'Kurale',
+			'La Belle Aurore' => 'La Belle Aurore',
+			'Lacquer' => 'Lacquer',
+			'Laila' => 'Laila',
+			'Lakki Reddy' => 'Lakki Reddy',
+			'Lalezar' => 'Lalezar',
+			'Lancelot' => 'Lancelot',
+			'Langar' => 'Langar',
+			'Lateef' => 'Lateef',
+			'Lato' => 'Lato',
+			'Lavishly Yours' => 'Lavishly Yours',
+			'League Gothic' => 'League Gothic',
+			'League Script' => 'League Script',
+			'League Spartan' => 'League Spartan',
+			'Leckerli One' => 'Leckerli One',
+			'Ledger' => 'Ledger',
+			'Lekton' => 'Lekton',
+			'Lemon' => 'Lemon',
+			'Lemonada' => 'Lemonada',
+			'Lexend' => 'Lexend',
+			'Lexend Deca' => 'Lexend Deca',
+			'Lexend Exa' => 'Lexend Exa',
+			'Lexend Giga' => 'Lexend Giga',
+			'Lexend Mega' => 'Lexend Mega',
+			'Lexend Peta' => 'Lexend Peta',
+			'Lexend Tera' => 'Lexend Tera',
+			'Lexend Zetta' => 'Lexend Zetta',
+			'Libre Barcode 128' => 'Libre Barcode 128',
+			'Libre Barcode 128 Text' => 'Libre Barcode 128 Text',
+			'Libre Barcode 39' => 'Libre Barcode 39',
+			'Libre Barcode 39 Extended' => 'Libre Barcode 39 Extended',
+			'Libre Barcode 39 Extended Text' => 'Libre Barcode 39 Extended Text',
+			'Libre Barcode 39 Text' => 'Libre Barcode 39 Text',
+			'Libre Barcode EAN13 Text' => 'Libre Barcode EAN13 Text',
+			'Libre Baskerville' => 'Libre Baskerville',
+			'Libre Bodoni' => 'Libre Bodoni',
+			'Libre Caslon Display' => 'Libre Caslon Display',
+			'Libre Caslon Text' => 'Libre Caslon Text',
+			'Libre Franklin' => 'Libre Franklin',
+			'Licorice' => 'Licorice',
+			'Life Savers' => 'Life Savers',
+			'Lilita One' => 'Lilita One',
+			'Lily Script One' => 'Lily Script One',
+			'Limelight' => 'Limelight',
+			'Linden Hill' => 'Linden Hill',
+			'Literata' => 'Literata',
+			'Liu Jian Mao Cao' => 'Liu Jian Mao Cao',
+			'Livvic' => 'Livvic',
+			'Lobster' => 'Lobster',
+			'Lobster Two' => 'Lobster Two',
+			'Londrina Outline' => 'Londrina Outline',
+			'Londrina Shadow' => 'Londrina Shadow',
+			'Londrina Sketch' => 'Londrina Sketch',
+			'Londrina Solid' => 'Londrina Solid',
+			'Long Cang' => 'Long Cang',
+			'Lora' => 'Lora',
+			'Love Light' => 'Love Light',
+			'Love Ya Like A Sister' => 'Love Ya Like A Sister',
+			'Loved by the King' => 'Loved by the King',
+			'Lovers Quarrel' => 'Lovers Quarrel',
+			'Luckiest Guy' => 'Luckiest Guy',
+			'Lusitana' => 'Lusitana',
+			'Lustria' => 'Lustria',
+			'Luxurious Roman' => 'Luxurious Roman',
+			'Luxurious Script' => 'Luxurious Script',
+			'M PLUS 1' => 'M PLUS 1',
+			'M PLUS 1 Code' => 'M PLUS 1 Code',
+			'M PLUS 1p' => 'M PLUS 1p',
+			'M PLUS 2' => 'M PLUS 2',
+			'M PLUS Code Latin' => 'M PLUS Code Latin',
+			'M PLUS Rounded 1c' => 'M PLUS Rounded 1c',
+			'Ma Shan Zheng' => 'Ma Shan Zheng',
+			'Macondo' => 'Macondo',
+			'Macondo Swash Caps' => 'Macondo Swash Caps',
+			'Mada' => 'Mada',
+			'Magra' => 'Magra',
+			'Maiden Orange' => 'Maiden Orange',
+			'Maitree' => 'Maitree',
+			'Major Mono Display' => 'Major Mono Display',
+			'Mako' => 'Mako',
+			'Mali' => 'Mali',
+			'Mallanna' => 'Mallanna',
+			'Mandali' => 'Mandali',
+			'Manjari' => 'Manjari',
+			'Manrope' => 'Manrope',
+			'Mansalva' => 'Mansalva',
+			'Manuale' => 'Manuale',
+			'Marcellus' => 'Marcellus',
+			'Marcellus SC' => 'Marcellus SC',
+			'Marck Script' => 'Marck Script',
+			'Margarine' => 'Margarine',
+			'Markazi Text' => 'Markazi Text',
+			'Marko One' => 'Marko One',
+			'Marmelad' => 'Marmelad',
+			'Martel' => 'Martel',
+			'Martel Sans' => 'Martel Sans',
+			'Marvel' => 'Marvel',
+			'Mate' => 'Mate',
+			'Mate SC' => 'Mate SC',
+			'Maven Pro' => 'Maven Pro',
+			'McLaren' => 'McLaren',
+			'Mea Culpa' => 'Mea Culpa',
+			'Meddon' => 'Meddon',
+			'MedievalSharp' => 'MedievalSharp',
+			'Medula One' => 'Medula One',
+			'Meera Inimai' => 'Meera Inimai',
+			'Megrim' => 'Megrim',
+			'Meie Script' => 'Meie Script',
+			'Meow Script' => 'Meow Script',
+			'Merienda' => 'Merienda',
+			'Merienda One' => 'Merienda One',
+			'Merriweather' => 'Merriweather',
+			'Merriweather Sans' => 'Merriweather Sans',
+			'Metal' => 'Metal',
+			'Metal Mania' => 'Metal Mania',
+			'Metamorphous' => 'Metamorphous',
+			'Metrophobic' => 'Metrophobic',
+			'Michroma' => 'Michroma',
+			'Milonga' => 'Milonga',
+			'Miltonian' => 'Miltonian',
+			'Miltonian Tattoo' => 'Miltonian Tattoo',
+			'Mina' => 'Mina',
+			'Miniver' => 'Miniver',
+			'Miriam Libre' => 'Miriam Libre',
+			'Mirza' => 'Mirza',
+			'Miss Fajardose' => 'Miss Fajardose',
+			'Mitr' => 'Mitr',
+			'Mochiy Pop One' => 'Mochiy Pop One',
+			'Mochiy Pop P One' => 'Mochiy Pop P One',
+			'Modak' => 'Modak',
+			'Modern Antiqua' => 'Modern Antiqua',
+			'Mogra' => 'Mogra',
+			'Mohave' => 'Mohave',
+			'Molengo' => 'Molengo',
+			'Molle' => 'Molle',
+			'Monda' => 'Monda',
+			'Monofett' => 'Monofett',
+			'Monoton' => 'Monoton',
+			'Monsieur La Doulaise' => 'Monsieur La Doulaise',
+			'Montaga' => 'Montaga',
+			'Montagu Slab' => 'Montagu Slab',
+			'MonteCarlo' => 'MonteCarlo',
+			'Montez' => 'Montez',
+			'Montserrat' => 'Montserrat',
+			'Montserrat Alternates' => 'Montserrat Alternates',
+			'Montserrat Subrayada' => 'Montserrat Subrayada',
+			'Moo Lah Lah' => 'Moo Lah Lah',
+			'Moon Dance' => 'Moon Dance',
+			'Moul' => 'Moul',
+			'Moulpali' => 'Moulpali',
+			'Mountains of Christmas' => 'Mountains of Christmas',
+			'Mouse Memoirs' => 'Mouse Memoirs',
+			'Mr Bedfort' => 'Mr Bedfort',
+			'Mr Dafoe' => 'Mr Dafoe',
+			'Mr De Haviland' => 'Mr De Haviland',
+			'Mrs Saint Delafield' => 'Mrs Saint Delafield',
+			'Mrs Sheppards' => 'Mrs Sheppards',
+			'Ms Madi' => 'Ms Madi',
+			'Mukta' => 'Mukta',
+			'Mukta Mahee' => 'Mukta Mahee',
+			'Mukta Malar' => 'Mukta Malar',
+			'Mukta Vaani' => 'Mukta Vaani',
+			'Mulish' => 'Mulish',
+			'Murecho' => 'Murecho',
+			'MuseoModerno' => 'MuseoModerno',
+			'My Soul' => 'My Soul',
+			'Mystery Quest' => 'Mystery Quest',
+			'NTR' => 'NTR',
+			'Nanum Brush Script' => 'Nanum Brush Script',
+			'Nanum Gothic' => 'Nanum Gothic',
+			'Nanum Gothic Coding' => 'Nanum Gothic Coding',
+			'Nanum Myeongjo' => 'Nanum Myeongjo',
+			'Nanum Pen Script' => 'Nanum Pen Script',
+			'Neonderthaw' => 'Neonderthaw',
+			'Nerko One' => 'Nerko One',
+			'Neucha' => 'Neucha',
+			'Neuton' => 'Neuton',
+			'New Rocker' => 'New Rocker',
+			'New Tegomin' => 'New Tegomin',
+			'News Cycle' => 'News Cycle',
+			'Newsreader' => 'Newsreader',
+			'Niconne' => 'Niconne',
+			'Niramit' => 'Niramit',
+			'Nixie One' => 'Nixie One',
+			'Nobile' => 'Nobile',
+			'Nokora' => 'Nokora',
+			'Norican' => 'Norican',
+			'Nosifer' => 'Nosifer',
+			'Notable' => 'Notable',
+			'Nothing You Could Do' => 'Nothing You Could Do',
+			'Noticia Text' => 'Noticia Text',
+			'Noto Emoji' => 'Noto Emoji',
+			'Noto Kufi Arabic' => 'Noto Kufi Arabic',
+			'Noto Music' => 'Noto Music',
+			'Noto Naskh Arabic' => 'Noto Naskh Arabic',
+			'Noto Nastaliq Urdu' => 'Noto Nastaliq Urdu',
+			'Noto Rashi Hebrew' => 'Noto Rashi Hebrew',
+			'Noto Sans' => 'Noto Sans',
+			'Noto Sans Adlam' => 'Noto Sans Adlam',
+			'Noto Sans Adlam Unjoined' => 'Noto Sans Adlam Unjoined',
+			'Noto Sans Anatolian Hieroglyphs' => 'Noto Sans Anatolian Hieroglyphs',
+			'Noto Sans Arabic' => 'Noto Sans Arabic',
+			'Noto Sans Armenian' => 'Noto Sans Armenian',
+			'Noto Sans Avestan' => 'Noto Sans Avestan',
+			'Noto Sans Balinese' => 'Noto Sans Balinese',
+			'Noto Sans Bamum' => 'Noto Sans Bamum',
+			'Noto Sans Bassa Vah' => 'Noto Sans Bassa Vah',
+			'Noto Sans Batak' => 'Noto Sans Batak',
+			'Noto Sans Bengali' => 'Noto Sans Bengali',
+			'Noto Sans Bhaiksuki' => 'Noto Sans Bhaiksuki',
+			'Noto Sans Brahmi' => 'Noto Sans Brahmi',
+			'Noto Sans Buginese' => 'Noto Sans Buginese',
+			'Noto Sans Buhid' => 'Noto Sans Buhid',
+			'Noto Sans Canadian Aboriginal' => 'Noto Sans Canadian Aboriginal',
+			'Noto Sans Carian' => 'Noto Sans Carian',
+			'Noto Sans Caucasian Albanian' => 'Noto Sans Caucasian Albanian',
+			'Noto Sans Chakma' => 'Noto Sans Chakma',
+			'Noto Sans Cham' => 'Noto Sans Cham',
+			'Noto Sans Cherokee' => 'Noto Sans Cherokee',
+			'Noto Sans Coptic' => 'Noto Sans Coptic',
+			'Noto Sans Cuneiform' => 'Noto Sans Cuneiform',
+			'Noto Sans Cypriot' => 'Noto Sans Cypriot',
+			'Noto Sans Deseret' => 'Noto Sans Deseret',
+			'Noto Sans Devanagari' => 'Noto Sans Devanagari',
+			'Noto Sans Display' => 'Noto Sans Display',
+			'Noto Sans Duployan' => 'Noto Sans Duployan',
+			'Noto Sans Egyptian Hieroglyphs' => 'Noto Sans Egyptian Hieroglyphs',
+			'Noto Sans Elbasan' => 'Noto Sans Elbasan',
+			'Noto Sans Elymaic' => 'Noto Sans Elymaic',
+			'Noto Sans Georgian' => 'Noto Sans Georgian',
+			'Noto Sans Glagolitic' => 'Noto Sans Glagolitic',
+			'Noto Sans Gothic' => 'Noto Sans Gothic',
+			'Noto Sans Grantha' => 'Noto Sans Grantha',
+			'Noto Sans Gujarati' => 'Noto Sans Gujarati',
+			'Noto Sans Gunjala Gondi' => 'Noto Sans Gunjala Gondi',
+			'Noto Sans Gurmukhi' => 'Noto Sans Gurmukhi',
+			'Noto Sans HK' => 'Noto Sans HK',
+			'Noto Sans Hanifi Rohingya' => 'Noto Sans Hanifi Rohingya',
+			'Noto Sans Hanunoo' => 'Noto Sans Hanunoo',
+			'Noto Sans Hatran' => 'Noto Sans Hatran',
+			'Noto Sans Hebrew' => 'Noto Sans Hebrew',
+			'Noto Sans Imperial Aramaic' => 'Noto Sans Imperial Aramaic',
+			'Noto Sans Indic Siyaq Numbers' => 'Noto Sans Indic Siyaq Numbers',
+			'Noto Sans Inscriptional Pahlavi' => 'Noto Sans Inscriptional Pahlavi',
+			'Noto Sans Inscriptional Parthian' => 'Noto Sans Inscriptional Parthian',
+			'Noto Sans JP' => 'Noto Sans JP',
+			'Noto Sans Javanese' => 'Noto Sans Javanese',
+			'Noto Sans KR' => 'Noto Sans KR',
+			'Noto Sans Kaithi' => 'Noto Sans Kaithi',
+			'Noto Sans Kannada' => 'Noto Sans Kannada',
+			'Noto Sans Kayah Li' => 'Noto Sans Kayah Li',
+			'Noto Sans Kharoshthi' => 'Noto Sans Kharoshthi',
+			'Noto Sans Khmer' => 'Noto Sans Khmer',
+			'Noto Sans Khojki' => 'Noto Sans Khojki',
+			'Noto Sans Khudawadi' => 'Noto Sans Khudawadi',
+			'Noto Sans Lao' => 'Noto Sans Lao',
+			'Noto Sans Lepcha' => 'Noto Sans Lepcha',
+			'Noto Sans Limbu' => 'Noto Sans Limbu',
+			'Noto Sans Linear A' => 'Noto Sans Linear A',
+			'Noto Sans Linear B' => 'Noto Sans Linear B',
+			'Noto Sans Lisu' => 'Noto Sans Lisu',
+			'Noto Sans Lycian' => 'Noto Sans Lycian',
+			'Noto Sans Lydian' => 'Noto Sans Lydian',
+			'Noto Sans Mahajani' => 'Noto Sans Mahajani',
+			'Noto Sans Malayalam' => 'Noto Sans Malayalam',
+			'Noto Sans Mandaic' => 'Noto Sans Mandaic',
+			'Noto Sans Manichaean' => 'Noto Sans Manichaean',
+			'Noto Sans Marchen' => 'Noto Sans Marchen',
+			'Noto Sans Masaram Gondi' => 'Noto Sans Masaram Gondi',
+			'Noto Sans Math' => 'Noto Sans Math',
+			'Noto Sans Mayan Numerals' => 'Noto Sans Mayan Numerals',
+			'Noto Sans Medefaidrin' => 'Noto Sans Medefaidrin',
+			'Noto Sans Meetei Mayek' => 'Noto Sans Meetei Mayek',
+			'Noto Sans Meroitic' => 'Noto Sans Meroitic',
+			'Noto Sans Miao' => 'Noto Sans Miao',
+			'Noto Sans Modi' => 'Noto Sans Modi',
+			'Noto Sans Mongolian' => 'Noto Sans Mongolian',
+			'Noto Sans Mono' => 'Noto Sans Mono',
+			'Noto Sans Mro' => 'Noto Sans Mro',
+			'Noto Sans Multani' => 'Noto Sans Multani',
+			'Noto Sans Myanmar' => 'Noto Sans Myanmar',
+			'Noto Sans N Ko' => 'Noto Sans N Ko',
+			'Noto Sans Nabataean' => 'Noto Sans Nabataean',
+			'Noto Sans New Tai Lue' => 'Noto Sans New Tai Lue',
+			'Noto Sans Newa' => 'Noto Sans Newa',
+			'Noto Sans Nushu' => 'Noto Sans Nushu',
+			'Noto Sans Ogham' => 'Noto Sans Ogham',
+			'Noto Sans Ol Chiki' => 'Noto Sans Ol Chiki',
+			'Noto Sans Old Hungarian' => 'Noto Sans Old Hungarian',
+			'Noto Sans Old Italic' => 'Noto Sans Old Italic',
+			'Noto Sans Old North Arabian' => 'Noto Sans Old North Arabian',
+			'Noto Sans Old Permic' => 'Noto Sans Old Permic',
+			'Noto Sans Old Persian' => 'Noto Sans Old Persian',
+			'Noto Sans Old Sogdian' => 'Noto Sans Old Sogdian',
+			'Noto Sans Old South Arabian' => 'Noto Sans Old South Arabian',
+			'Noto Sans Old Turkic' => 'Noto Sans Old Turkic',
+			'Noto Sans Oriya' => 'Noto Sans Oriya',
+			'Noto Sans Osage' => 'Noto Sans Osage',
+			'Noto Sans Osmanya' => 'Noto Sans Osmanya',
+			'Noto Sans Pahawh Hmong' => 'Noto Sans Pahawh Hmong',
+			'Noto Sans Palmyrene' => 'Noto Sans Palmyrene',
+			'Noto Sans Pau Cin Hau' => 'Noto Sans Pau Cin Hau',
+			'Noto Sans Phags Pa' => 'Noto Sans Phags Pa',
+			'Noto Sans Phoenician' => 'Noto Sans Phoenician',
+			'Noto Sans Psalter Pahlavi' => 'Noto Sans Psalter Pahlavi',
+			'Noto Sans Rejang' => 'Noto Sans Rejang',
+			'Noto Sans Runic' => 'Noto Sans Runic',
+			'Noto Sans SC' => 'Noto Sans SC',
+			'Noto Sans Samaritan' => 'Noto Sans Samaritan',
+			'Noto Sans Saurashtra' => 'Noto Sans Saurashtra',
+			'Noto Sans Sharada' => 'Noto Sans Sharada',
+			'Noto Sans Shavian' => 'Noto Sans Shavian',
+			'Noto Sans Siddham' => 'Noto Sans Siddham',
+			'Noto Sans Sinhala' => 'Noto Sans Sinhala',
+			'Noto Sans Sogdian' => 'Noto Sans Sogdian',
+			'Noto Sans Sora Sompeng' => 'Noto Sans Sora Sompeng',
+			'Noto Sans Soyombo' => 'Noto Sans Soyombo',
+			'Noto Sans Sundanese' => 'Noto Sans Sundanese',
+			'Noto Sans Syloti Nagri' => 'Noto Sans Syloti Nagri',
+			'Noto Sans Symbols' => 'Noto Sans Symbols',
+			'Noto Sans Symbols 2' => 'Noto Sans Symbols 2',
+			'Noto Sans Syriac' => 'Noto Sans Syriac',
+			'Noto Sans TC' => 'Noto Sans TC',
+			'Noto Sans Tagalog' => 'Noto Sans Tagalog',
+			'Noto Sans Tagbanwa' => 'Noto Sans Tagbanwa',
+			'Noto Sans Tai Le' => 'Noto Sans Tai Le',
+			'Noto Sans Tai Tham' => 'Noto Sans Tai Tham',
+			'Noto Sans Tai Viet' => 'Noto Sans Tai Viet',
+			'Noto Sans Takri' => 'Noto Sans Takri',
+			'Noto Sans Tamil' => 'Noto Sans Tamil',
+			'Noto Sans Tamil Supplement' => 'Noto Sans Tamil Supplement',
+			'Noto Sans Telugu' => 'Noto Sans Telugu',
+			'Noto Sans Thaana' => 'Noto Sans Thaana',
+			'Noto Sans Thai' => 'Noto Sans Thai',
+			'Noto Sans Thai Looped' => 'Noto Sans Thai Looped',
+			'Noto Sans Tifinagh' => 'Noto Sans Tifinagh',
+			'Noto Sans Tirhuta' => 'Noto Sans Tirhuta',
+			'Noto Sans Ugaritic' => 'Noto Sans Ugaritic',
+			'Noto Sans Vai' => 'Noto Sans Vai',
+			'Noto Sans Wancho' => 'Noto Sans Wancho',
+			'Noto Sans Warang Citi' => 'Noto Sans Warang Citi',
+			'Noto Sans Yi' => 'Noto Sans Yi',
+			'Noto Sans Zanabazar Square' => 'Noto Sans Zanabazar Square',
+			'Noto Serif' => 'Noto Serif',
+			'Noto Serif Ahom' => 'Noto Serif Ahom',
+			'Noto Serif Armenian' => 'Noto Serif Armenian',
+			'Noto Serif Balinese' => 'Noto Serif Balinese',
+			'Noto Serif Bengali' => 'Noto Serif Bengali',
+			'Noto Serif Devanagari' => 'Noto Serif Devanagari',
+			'Noto Serif Display' => 'Noto Serif Display',
+			'Noto Serif Dogra' => 'Noto Serif Dogra',
+			'Noto Serif Ethiopic' => 'Noto Serif Ethiopic',
+			'Noto Serif Georgian' => 'Noto Serif Georgian',
+			'Noto Serif Grantha' => 'Noto Serif Grantha',
+			'Noto Serif Gujarati' => 'Noto Serif Gujarati',
+			'Noto Serif Gurmukhi' => 'Noto Serif Gurmukhi',
+			'Noto Serif Hebrew' => 'Noto Serif Hebrew',
+			'Noto Serif JP' => 'Noto Serif JP',
+			'Noto Serif KR' => 'Noto Serif KR',
+			'Noto Serif Kannada' => 'Noto Serif Kannada',
+			'Noto Serif Khmer' => 'Noto Serif Khmer',
+			'Noto Serif Lao' => 'Noto Serif Lao',
+			'Noto Serif Malayalam' => 'Noto Serif Malayalam',
+			'Noto Serif Myanmar' => 'Noto Serif Myanmar',
+			'Noto Serif Nyiakeng Puachue Hmong' => 'Noto Serif Nyiakeng Puachue Hmong',
+			'Noto Serif SC' => 'Noto Serif SC',
+			'Noto Serif Sinhala' => 'Noto Serif Sinhala',
+			'Noto Serif TC' => 'Noto Serif TC',
+			'Noto Serif Tamil' => 'Noto Serif Tamil',
+			'Noto Serif Tangut' => 'Noto Serif Tangut',
+			'Noto Serif Telugu' => 'Noto Serif Telugu',
+			'Noto Serif Thai' => 'Noto Serif Thai',
+			'Noto Serif Tibetan' => 'Noto Serif Tibetan',
+			'Noto Serif Yezidi' => 'Noto Serif Yezidi',
+			'Noto Traditional Nushu' => 'Noto Traditional Nushu',
+			'Nova Cut' => 'Nova Cut',
+			'Nova Flat' => 'Nova Flat',
+			'Nova Mono' => 'Nova Mono',
+			'Nova Oval' => 'Nova Oval',
+			'Nova Round' => 'Nova Round',
+			'Nova Script' => 'Nova Script',
+			'Nova Slim' => 'Nova Slim',
+			'Nova Square' => 'Nova Square',
+			'Numans' => 'Numans',
+			'Nunito' => 'Nunito',
+			'Nunito Sans' => 'Nunito Sans',
+			'Nuosu SIL' => 'Nuosu SIL',
+			'Odibee Sans' => 'Odibee Sans',
+			'Odor Mean Chey' => 'Odor Mean Chey',
+			'Offside' => 'Offside',
+			'Oi' => 'Oi',
+			'Old Standard TT' => 'Old Standard TT',
+			'Oldenburg' => 'Oldenburg',
+			'Ole' => 'Ole',
+			'Oleo Script' => 'Oleo Script',
+			'Oleo Script Swash Caps' => 'Oleo Script Swash Caps',
+			'Oooh Baby' => 'Oooh Baby',
+			'Open Sans' => 'Open Sans',
+			'Oranienbaum' => 'Oranienbaum',
+			'Orbitron' => 'Orbitron',
+			'Oregano' => 'Oregano',
+			'Orelega One' => 'Orelega One',
+			'Orienta' => 'Orienta',
+			'Original Surfer' => 'Original Surfer',
+			'Oswald' => 'Oswald',
+			'Otomanopee One' => 'Otomanopee One',
+			'Outfit' => 'Outfit',
+			'Over the Rainbow' => 'Over the Rainbow',
+			'Overlock' => 'Overlock',
+			'Overlock SC' => 'Overlock SC',
+			'Overpass' => 'Overpass',
+			'Overpass Mono' => 'Overpass Mono',
+			'Ovo' => 'Ovo',
+			'Oxanium' => 'Oxanium',
+			'Oxygen' => 'Oxygen',
+			'Oxygen Mono' => 'Oxygen Mono',
+			'PT Mono' => 'PT Mono',
+			'PT Sans' => 'PT Sans',
+			'PT Sans Caption' => 'PT Sans Caption',
+			'PT Sans Narrow' => 'PT Sans Narrow',
+			'PT Serif' => 'PT Serif',
+			'PT Serif Caption' => 'PT Serif Caption',
+			'Pacifico' => 'Pacifico',
+			'Padauk' => 'Padauk',
+			'Palanquin' => 'Palanquin',
+			'Palanquin Dark' => 'Palanquin Dark',
+			'Palette Mosaic' => 'Palette Mosaic',
+			'Pangolin' => 'Pangolin',
+			'Paprika' => 'Paprika',
+			'Parisienne' => 'Parisienne',
+			'Passero One' => 'Passero One',
+			'Passion One' => 'Passion One',
+			'Passions Conflict' => 'Passions Conflict',
+			'Pathway Gothic One' => 'Pathway Gothic One',
+			'Patrick Hand' => 'Patrick Hand',
+			'Patrick Hand SC' => 'Patrick Hand SC',
+			'Pattaya' => 'Pattaya',
+			'Patua One' => 'Patua One',
+			'Pavanam' => 'Pavanam',
+			'Paytone One' => 'Paytone One',
+			'Peddana' => 'Peddana',
+			'Peralta' => 'Peralta',
+			'Permanent Marker' => 'Permanent Marker',
+			'Petemoss' => 'Petemoss',
+			'Petit Formal Script' => 'Petit Formal Script',
+			'Petrona' => 'Petrona',
+			'Philosopher' => 'Philosopher',
+			'Piazzolla' => 'Piazzolla',
+			'Piedra' => 'Piedra',
+			'Pinyon Script' => 'Pinyon Script',
+			'Pirata One' => 'Pirata One',
+			'Plaster' => 'Plaster',
+			'Play' => 'Play',
+			'Playball' => 'Playball',
+			'Playfair Display' => 'Playfair Display',
+			'Playfair Display SC' => 'Playfair Display SC',
+			'Plus Jakarta Sans' => 'Plus Jakarta Sans',
+			'Podkova' => 'Podkova',
+			'Poiret One' => 'Poiret One',
+			'Poller One' => 'Poller One',
+			'Poly' => 'Poly',
+			'Pompiere' => 'Pompiere',
+			'Pontano Sans' => 'Pontano Sans',
+			'Poor Story' => 'Poor Story',
+			'Poppins' => 'Poppins',
+			'Port Lligat Sans' => 'Port Lligat Sans',
+			'Port Lligat Slab' => 'Port Lligat Slab',
+			'Potta One' => 'Potta One',
+			'Pragati Narrow' => 'Pragati Narrow',
+			'Praise' => 'Praise',
+			'Prata' => 'Prata',
+			'Preahvihear' => 'Preahvihear',
+			'Press Start 2P' => 'Press Start 2P',
+			'Pridi' => 'Pridi',
+			'Princess Sofia' => 'Princess Sofia',
+			'Prociono' => 'Prociono',
+			'Prompt' => 'Prompt',
+			'Prosto One' => 'Prosto One',
+			'Proza Libre' => 'Proza Libre',
+			'Public Sans' => 'Public Sans',
+			'Puppies Play' => 'Puppies Play',
+			'Puritan' => 'Puritan',
+			'Purple Purse' => 'Purple Purse',
+			'Qahiri' => 'Qahiri',
+			'Quando' => 'Quando',
+			'Quantico' => 'Quantico',
+			'Quattrocento' => 'Quattrocento',
+			'Quattrocento Sans' => 'Quattrocento Sans',
+			'Questrial' => 'Questrial',
+			'Quicksand' => 'Quicksand',
+			'Quintessential' => 'Quintessential',
+			'Qwigley' => 'Qwigley',
+			'Qwitcher Grypen' => 'Qwitcher Grypen',
+			'Racing Sans One' => 'Racing Sans One',
+			'Radio Canada' => 'Radio Canada',
+			'Radley' => 'Radley',
+			'Rajdhani' => 'Rajdhani',
+			'Rakkas' => 'Rakkas',
+			'Raleway' => 'Raleway',
+			'Raleway Dots' => 'Raleway Dots',
+			'Ramabhadra' => 'Ramabhadra',
+			'Ramaraja' => 'Ramaraja',
+			'Rambla' => 'Rambla',
+			'Rammetto One' => 'Rammetto One',
+			'Rampart One' => 'Rampart One',
+			'Ranchers' => 'Ranchers',
+			'Rancho' => 'Rancho',
+			'Ranga' => 'Ranga',
+			'Rasa' => 'Rasa',
+			'Rationale' => 'Rationale',
+			'Ravi Prakash' => 'Ravi Prakash',
+			'Readex Pro' => 'Readex Pro',
+			'Recursive' => 'Recursive',
+			'Red Hat Display' => 'Red Hat Display',
+			'Red Hat Mono' => 'Red Hat Mono',
+			'Red Hat Text' => 'Red Hat Text',
+			'Red Rose' => 'Red Rose',
+			'Redacted' => 'Redacted',
+			'Redacted Script' => 'Redacted Script',
+			'Redressed' => 'Redressed',
+			'Reem Kufi' => 'Reem Kufi',
+			'Reenie Beanie' => 'Reenie Beanie',
+			'Reggae One' => 'Reggae One',
+			'Revalia' => 'Revalia',
+			'Rhodium Libre' => 'Rhodium Libre',
+			'Ribeye' => 'Ribeye',
+			'Ribeye Marrow' => 'Ribeye Marrow',
+			'Righteous' => 'Righteous',
+			'Risque' => 'Risque',
+			'Road Rage' => 'Road Rage',
+			'Roboto' => 'Roboto',
+			'Roboto Condensed' => 'Roboto Condensed',
+			'Roboto Flex' => 'Roboto Flex',
+			'Roboto Mono' => 'Roboto Mono',
+			'Roboto Serif' => 'Roboto Serif',
+			'Roboto Slab' => 'Roboto Slab',
+			'Rochester' => 'Rochester',
+			'Rock 3D' => 'Rock 3D',
+			'Rock Salt' => 'Rock Salt',
+			'RocknRoll One' => 'RocknRoll One',
+			'Rokkitt' => 'Rokkitt',
+			'Romanesco' => 'Romanesco',
+			'Ropa Sans' => 'Ropa Sans',
+			'Rosario' => 'Rosario',
+			'Rosarivo' => 'Rosarivo',
+			'Rouge Script' => 'Rouge Script',
+			'Rowdies' => 'Rowdies',
+			'Rozha One' => 'Rozha One',
+			'Rubik' => 'Rubik',
+			'Rubik Beastly' => 'Rubik Beastly',
+			'Rubik Bubbles' => 'Rubik Bubbles',
+			'Rubik Glitch' => 'Rubik Glitch',
+			'Rubik Microbe' => 'Rubik Microbe',
+			'Rubik Mono One' => 'Rubik Mono One',
+			'Rubik Moonrocks' => 'Rubik Moonrocks',
+			'Rubik Puddles' => 'Rubik Puddles',
+			'Rubik Wet Paint' => 'Rubik Wet Paint',
+			'Ruda' => 'Ruda',
+			'Rufina' => 'Rufina',
+			'Ruge Boogie' => 'Ruge Boogie',
+			'Ruluko' => 'Ruluko',
+			'Rum Raisin' => 'Rum Raisin',
+			'Ruslan Display' => 'Ruslan Display',
+			'Russo One' => 'Russo One',
+			'Ruthie' => 'Ruthie',
+			'Rye' => 'Rye',
+			'STIX Two Text' => 'STIX Two Text',
+			'Sacramento' => 'Sacramento',
+			'Sahitya' => 'Sahitya',
+			'Sail' => 'Sail',
+			'Saira' => 'Saira',
+			'Saira Condensed' => 'Saira Condensed',
+			'Saira Extra Condensed' => 'Saira Extra Condensed',
+			'Saira Semi Condensed' => 'Saira Semi Condensed',
+			'Saira Stencil One' => 'Saira Stencil One',
+			'Salsa' => 'Salsa',
+			'Sanchez' => 'Sanchez',
+			'Sancreek' => 'Sancreek',
+			'Sansita' => 'Sansita',
+			'Sansita Swashed' => 'Sansita Swashed',
+			'Sarabun' => 'Sarabun',
+			'Sarala' => 'Sarala',
+			'Sarina' => 'Sarina',
+			'Sarpanch' => 'Sarpanch',
+			'Sassy Frass' => 'Sassy Frass',
+			'Satisfy' => 'Satisfy',
+			'Sawarabi Gothic' => 'Sawarabi Gothic',
+			'Sawarabi Mincho' => 'Sawarabi Mincho',
+			'Scada' => 'Scada',
+			'Scheherazade New' => 'Scheherazade New',
+			'Schoolbell' => 'Schoolbell',
+			'Scope One' => 'Scope One',
+			'Seaweed Script' => 'Seaweed Script',
+			'Secular One' => 'Secular One',
+			'Sedgwick Ave' => 'Sedgwick Ave',
+			'Sedgwick Ave Display' => 'Sedgwick Ave Display',
+			'Sen' => 'Sen',
+			'Send Flowers' => 'Send Flowers',
+			'Sevillana' => 'Sevillana',
+			'Seymour One' => 'Seymour One',
+			'Shadows Into Light' => 'Shadows Into Light',
+			'Shadows Into Light Two' => 'Shadows Into Light Two',
+			'Shalimar' => 'Shalimar',
+			'Shanti' => 'Shanti',
+			'Share' => 'Share',
+			'Share Tech' => 'Share Tech',
+			'Share Tech Mono' => 'Share Tech Mono',
+			'Shippori Antique' => 'Shippori Antique',
+			'Shippori Antique B1' => 'Shippori Antique B1',
+			'Shippori Mincho' => 'Shippori Mincho',
+			'Shippori Mincho B1' => 'Shippori Mincho B1',
+			'Shizuru' => 'Shizuru',
+			'Shojumaru' => 'Shojumaru',
+			'Short Stack' => 'Short Stack',
+			'Shrikhand' => 'Shrikhand',
+			'Siemreap' => 'Siemreap',
+			'Sigmar One' => 'Sigmar One',
+			'Signika' => 'Signika',
+			'Signika Negative' => 'Signika Negative',
+			'Simonetta' => 'Simonetta',
+			'Single Day' => 'Single Day',
+			'Sintony' => 'Sintony',
+			'Sirin Stencil' => 'Sirin Stencil',
+			'Six Caps' => 'Six Caps',
+			'Skranji' => 'Skranji',
+			'Slabo 13px' => 'Slabo 13px',
+			'Slabo 27px' => 'Slabo 27px',
+			'Slackey' => 'Slackey',
+			'Smokum' => 'Smokum',
+			'Smooch' => 'Smooch',
+			'Smooch Sans' => 'Smooch Sans',
+			'Smythe' => 'Smythe',
+			'Sniglet' => 'Sniglet',
+			'Snippet' => 'Snippet',
+			'Snowburst One' => 'Snowburst One',
+			'Sofadi One' => 'Sofadi One',
+			'Sofia' => 'Sofia',
+			'Solway' => 'Solway',
+			'Song Myung' => 'Song Myung',
+			'Sonsie One' => 'Sonsie One',
+			'Sora' => 'Sora',
+			'Sorts Mill Goudy' => 'Sorts Mill Goudy',
+			'Source Code Pro' => 'Source Code Pro',
+			'Source Sans 3' => 'Source Sans 3',
+			'Source Sans Pro' => 'Source Sans Pro',
+			'Source Serif 4' => 'Source Serif 4',
+			'Source Serif Pro' => 'Source Serif Pro',
+			'Space Grotesk' => 'Space Grotesk',
+			'Space Mono' => 'Space Mono',
+			'Special Elite' => 'Special Elite',
+			'Spectral' => 'Spectral',
+			'Spectral SC' => 'Spectral SC',
+			'Spicy Rice' => 'Spicy Rice',
+			'Spinnaker' => 'Spinnaker',
+			'Spirax' => 'Spirax',
+			'Spline Sans' => 'Spline Sans',
+			'Spline Sans Mono' => 'Spline Sans Mono',
+			'Squada One' => 'Squada One',
+			'Square Peg' => 'Square Peg',
+			'Sree Krushnadevaraya' => 'Sree Krushnadevaraya',
+			'Sriracha' => 'Sriracha',
+			'Srisakdi' => 'Srisakdi',
+			'Staatliches' => 'Staatliches',
+			'Stalemate' => 'Stalemate',
+			'Stalinist One' => 'Stalinist One',
+			'Stardos Stencil' => 'Stardos Stencil',
+			'Stick' => 'Stick',
+			'Stick No Bills' => 'Stick No Bills',
+			'Stint Ultra Condensed' => 'Stint Ultra Condensed',
+			'Stint Ultra Expanded' => 'Stint Ultra Expanded',
+			'Stoke' => 'Stoke',
+			'Strait' => 'Strait',
+			'Style Script' => 'Style Script',
+			'Stylish' => 'Stylish',
+			'Sue Ellen Francisco' => 'Sue Ellen Francisco',
+			'Suez One' => 'Suez One',
+			'Sulphur Point' => 'Sulphur Point',
+			'Sumana' => 'Sumana',
+			'Sunflower' => 'Sunflower',
+			'Sunshiney' => 'Sunshiney',
+			'Supermercado One' => 'Supermercado One',
+			'Sura' => 'Sura',
+			'Suranna' => 'Suranna',
+			'Suravaram' => 'Suravaram',
+			'Suwannaphum' => 'Suwannaphum',
+			'Swanky and Moo Moo' => 'Swanky and Moo Moo',
+			'Syncopate' => 'Syncopate',
+			'Syne' => 'Syne',
+			'Syne Mono' => 'Syne Mono',
+			'Syne Tactile' => 'Syne Tactile',
+			'Tai Heritage Pro' => 'Tai Heritage Pro',
+			'Tajawal' => 'Tajawal',
+			'Tangerine' => 'Tangerine',
+			'Tapestry' => 'Tapestry',
+			'Taprom' => 'Taprom',
+			'Tauri' => 'Tauri',
+			'Taviraj' => 'Taviraj',
+			'Teko' => 'Teko',
+			'Telex' => 'Telex',
+			'Tenali Ramakrishna' => 'Tenali Ramakrishna',
+			'Tenor Sans' => 'Tenor Sans',
+			'Text Me One' => 'Text Me One',
+			'Texturina' => 'Texturina',
+			'Thasadith' => 'Thasadith',
+			'The Girl Next Door' => 'The Girl Next Door',
+			'The Nautigal' => 'The Nautigal',
+			'Tienne' => 'Tienne',
+			'Tillana' => 'Tillana',
+			'Timmana' => 'Timmana',
+			'Tinos' => 'Tinos',
+			'Tiro Bangla' => 'Tiro Bangla',
+			'Tiro Devanagari Hindi' => 'Tiro Devanagari Hindi',
+			'Tiro Devanagari Marathi' => 'Tiro Devanagari Marathi',
+			'Tiro Devanagari Sanskrit' => 'Tiro Devanagari Sanskrit',
+			'Tiro Gurmukhi' => 'Tiro Gurmukhi',
+			'Tiro Kannada' => 'Tiro Kannada',
+			'Tiro Tamil' => 'Tiro Tamil',
+			'Tiro Telugu' => 'Tiro Telugu',
+			'Titan One' => 'Titan One',
+			'Titillium Web' => 'Titillium Web',
+			'Tomorrow' => 'Tomorrow',
+			'Tourney' => 'Tourney',
+			'Trade Winds' => 'Trade Winds',
+			'Train One' => 'Train One',
+			'Trirong' => 'Trirong',
+			'Trispace' => 'Trispace',
+			'Trocchi' => 'Trocchi',
+			'Trochut' => 'Trochut',
+			'Truculenta' => 'Truculenta',
+			'Trykker' => 'Trykker',
+			'Tulpen One' => 'Tulpen One',
+			'Turret Road' => 'Turret Road',
+			'Twinkle Star' => 'Twinkle Star',
+			'Ubuntu' => 'Ubuntu',
+			'Ubuntu Condensed' => 'Ubuntu Condensed',
+			'Ubuntu Mono' => 'Ubuntu Mono',
+			'Uchen' => 'Uchen',
+			'Ultra' => 'Ultra',
+			'Uncial Antiqua' => 'Uncial Antiqua',
+			'Underdog' => 'Underdog',
+			'Unica One' => 'Unica One',
+			'UnifrakturCook' => 'UnifrakturCook',
+			'UnifrakturMaguntia' => 'UnifrakturMaguntia',
+			'Unkempt' => 'Unkempt',
+			'Unlock' => 'Unlock',
+			'Unna' => 'Unna',
+			'Updock' => 'Updock',
+			'Urbanist' => 'Urbanist',
+			'VT323' => 'VT323',
+			'Vampiro One' => 'Vampiro One',
+			'Varela' => 'Varela',
+			'Varela Round' => 'Varela Round',
+			'Varta' => 'Varta',
+			'Vast Shadow' => 'Vast Shadow',
+			'Vazirmatn' => 'Vazirmatn',
+			'Vesper Libre' => 'Vesper Libre',
+			'Viaoda Libre' => 'Viaoda Libre',
+			'Vibes' => 'Vibes',
+			'Vibur' => 'Vibur',
+			'Vidaloka' => 'Vidaloka',
+			'Viga' => 'Viga',
+			'Voces' => 'Voces',
+			'Volkhov' => 'Volkhov',
+			'Vollkorn' => 'Vollkorn',
+			'Vollkorn SC' => 'Vollkorn SC',
+			'Voltaire' => 'Voltaire',
+			'Vujahday Script' => 'Vujahday Script',
+			'Waiting for the Sunrise' => 'Waiting for the Sunrise',
+			'Wallpoet' => 'Wallpoet',
+			'Walter Turncoat' => 'Walter Turncoat',
+			'Warnes' => 'Warnes',
+			'Water Brush' => 'Water Brush',
+			'Waterfall' => 'Waterfall',
+			'Wellfleet' => 'Wellfleet',
+			'Wendy One' => 'Wendy One',
+			'Whisper' => 'Whisper',
+			'WindSong' => 'WindSong',
+			'Wire One' => 'Wire One',
+			'Work Sans' => 'Work Sans',
+			'Xanh Mono' => 'Xanh Mono',
+			'Yaldevi' => 'Yaldevi',
+			'Yanone Kaffeesatz' => 'Yanone Kaffeesatz',
+			'Yantramanav' => 'Yantramanav',
+			'Yatra One' => 'Yatra One',
+			'Yellowtail' => 'Yellowtail',
+			'Yeon Sung' => 'Yeon Sung',
+			'Yeseva One' => 'Yeseva One',
+			'Yesteryear' => 'Yesteryear',
+			'Yomogi' => 'Yomogi',
+			'Yrsa' => 'Yrsa',
+			'Yuji Boku' => 'Yuji Boku',
+			'Yuji Hentaigana Akari' => 'Yuji Hentaigana Akari',
+			'Yuji Hentaigana Akebono' => 'Yuji Hentaigana Akebono',
+			'Yuji Mai' => 'Yuji Mai',
+			'Yuji Syuku' => 'Yuji Syuku',
+			'Yusei Magic' => 'Yusei Magic',
+			'ZCOOL KuaiLe' => 'ZCOOL KuaiLe',
+			'ZCOOL QingKe HuangYou' => 'ZCOOL QingKe HuangYou',
+			'ZCOOL XiaoWei' => 'ZCOOL XiaoWei',
+			'Zen Antique' => 'Zen Antique',
+			'Zen Antique Soft' => 'Zen Antique Soft',
+			'Zen Dots' => 'Zen Dots',
+			'Zen Kaku Gothic Antique' => 'Zen Kaku Gothic Antique',
+			'Zen Kaku Gothic New' => 'Zen Kaku Gothic New',
+			'Zen Kurenaido' => 'Zen Kurenaido',
+			'Zen Loop' => 'Zen Loop',
+			'Zen Maru Gothic' => 'Zen Maru Gothic',
+			'Zen Old Mincho' => 'Zen Old Mincho',
+			'Zen Tokyo Zoo' => 'Zen Tokyo Zoo',
+			'Zeyada' => 'Zeyada',
+			'Zhi Mang Xing' => 'Zhi Mang Xing',
+			'Zilla Slab' => 'Zilla Slab',
+			'Zilla Slab Highlight' => 'Zilla Slab Highlight',
+		);
+
+		if ( 'default' === $value || empty( $options['primary_font'] ) ) {
+			$google_fonts_list[''] = $google_fonts_list['template-default'];
+			unset( $google_fonts_list['template-default'] );
+		}
+
+		$primary_color_value = ( 'default' === $value ) ? 'default_primary_color' : 'primary_color';
+		$fallback_image_value = ( 'default' === $value ) ? 'fallback_image' : 'background';
+
+		$mightyshare_template_display_options = array(
+			'primary_font' => array(
+				'label'         => 'Google Font',
+				'weight'        => 4,
+				'field_type'    => 'render_mightyshare_select_field',
+				'value'         => ( ! empty( $setting_prefix['value']['primary_font'] ) ) ? $setting_prefix['value']['primary_font'] : '',
+				'field_options' => array(
+					'id'          => $setting_prefix['name'] . '[primary_font]',
+					'classes'     => 'paid-only',
+					'options'     => $google_fonts_list,
+					'description' => 'Google Fonts are available for <a href="https://mightyshare.io/pricing/" rel="noopener nofollow" target="_blank">paid plans</a>.',
+				),
+			),
+			'primary_color' => array(
+				'label'         => 'Primary Color',
+				'weight'        => 6,
+				'field_type'    => 'render_mightyshare_color_field',
+				'value'         => ( ! empty( $setting_prefix['value'][ $primary_color_value ] ) ) ? $setting_prefix['value'][ $primary_color_value ] : '',
+				'field_options' => array(
+					'id'          => $setting_prefix['name'] . '[' . $primary_color_value . ']',
+					'classes'     => '',
+					'description' => 'Primary color used in many image templates.',
+				),
+			),
+			'logo' => array(
+				'label'         => 'Logo',
+				'weight'        => 8,
+				'field_type'    => 'render_mightyshare_image_field',
+				'value'         => ( ! empty( $setting_prefix['value']['logo'] ) ) ? $setting_prefix['value']['logo'] : '',
+				'field_options' => array(
+					'id'          => $setting_prefix['name'] . '[logo]',
+					'classes'     => '',
+					'options'     => $template_options,
+					'description' => 'Your logo to be used in templates.',
+				),
+			),
+			'background' => array(
+				'label'         => 'Fallback Image',
+				'weight'        => 10,
+				'field_type'    => 'render_mightyshare_image_field',
+				'value'         => ( ! empty( $setting_prefix['value'][ $fallback_image_value ] ) ) ? $setting_prefix['value'][ $fallback_image_value ] : '',
+				'field_options' => array(
+					'id'          => $setting_prefix['name'] . '[' . $fallback_image_value . ']',
+					'classes'     => '',
+					'options'     => $template_options,
+					'description' => 'By default templates will use your post/page featured image. Set a fallback photo to be used if a post/page has no set featured image.',
+				),
+			),
+		);
+
+		if ( 'default' === $value || ( is_object( $value ) && ( 'WP_Post_Type' === get_class( $value ) || 'WP_Taxonomy' === get_class( $value ) ) ) ) {
+			$mightyshare_template_display_options['description'] =
+				array(
+					'label'         => 'Enable Subheadings',
+					'weight'        => 7,
+					'field_type'    => 'render_mightyshare_checkbox_field',
+					'value'         => ( ! empty( $setting_prefix['value']['enable_description'] ) ) ? 'yes' : '',
+					'field_options' => array(
+						'id'          => $setting_prefix['name'] . '[enable_description]',
+						'classes'     => 'mightyshare-toggler-wrapper',
+						'label'       => true,
+						'default'     => 'no',
+						'set_value'   => 'yes',
+						'description' => 'Display a subheading in compatible templates (uses the post excerpt).',
+					),
+				);
+
+				if ( is_object( $value ) && 'WP_Taxonomy' === get_class( $value ) ) {
+					$mightyshare_template_display_options['description']['field_options']['description'] = 'Display a subheading in compatible templates (uses the taxonomy description).';
+				}
+		}
+
+		if ( ( ! empty( $options['plan_type'] ) && 'paid' === $options['plan_type'] ) && ! empty( $mightyshare_template_display_options['primary_font'] ) ) {
+			$mightyshare_template_display_options['primary_font']['field_options']['classes']     = '';
+			$mightyshare_template_display_options['primary_font']['field_options']['description'] = 'Font used in image renders (paid plan feature).';
+		}
+
+		return $mightyshare_template_display_options;
 	}
 }

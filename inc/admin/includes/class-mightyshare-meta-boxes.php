@@ -92,12 +92,6 @@ if ( ! class_exists( 'Mightyshare_Meta_Boxes' ) ) {
 							break;
 						}
 				endswitch;
-
-					if ( isset( $field['description'] ) ) {
-						?>
-						<p class="description"><?php echo wp_kses_post( $field['description'] ); ?></p>
-						<?php
-					}
 					?>
 					</td></tr>
 					<?php
