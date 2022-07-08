@@ -40,19 +40,40 @@ if ( ! class_exists( 'Mightyshare_Meta_Boxes' ) ) {
 			wp_nonce_field( $this->metabox['id'], $this->metabox['id'] . '_wpnonce' );
 
 			if ( isset( $this->metabox['fields'] ) && is_array( $this->metabox['fields'] ) ) {
-				?>
-				<table class="form-table"><tbody>
-				<?php
-				foreach ( $this->metabox['fields'] as $field ) :
+
+				$table_opened = false;
+				$table_closed = false;
+
+				foreach ( $this->metabox['fields'] as $key => $field ) :
 
 					// Begin field wrap.
+					if ( isset( $field['modal_before_id'] ) && isset( $field['modal_title'] ) ) {
+						if ( true === $table_opened && false === $table_closed ) {
+							?>
+							</tbody></table>
+							<?php
+							$table_opened = false;
+							$table_closed = false;
+						}
+						?>
+						<div id="<?php echo esc_attr( $field['modal_before_id'] ); ?>" style="display:none;">
+						<h2><?php echo esc_html( $field['modal_title'] ); ?></h2>
+						<?php
+					}
+					if ( false === $table_opened ) {
+						$table_opened = true;
+						?>
+						<table class="form-table"><tbody>
+						<?php
+					}
+
 					if ( in_array( $field['type'], array( 'checkbox', 'radio' ), true ) ) {
 						?>
-						<tr><th style="font-weight:normal"><?php echo esc_attr( ( ! empty( $field['label'] ) ? $field['label'] : '' ) ); ?></th><td>
+						<tr><th><?php echo esc_attr( ( ! empty( $field['label'] ) ? $field['label'] : '' ) ); ?></th><td>
 						<?php
 					} else {
 						?>
-						<tr><th style="font-weight:normal"><label for="<?php echo esc_attr( $this->prefix . $field['id'] ); ?>"><?php echo esc_attr( ( ! empty( $field['label'] ) ? $field['label'] : '' ) ); ?></label></th><td>
+						<tr><th><label for="<?php echo esc_attr( $this->prefix . $field['id'] ); ?>"><?php echo esc_attr( ( ! empty( $field['label'] ) ? $field['label'] : '' ) ); ?></label></th><td>
 						<?php
 					}
 
@@ -63,41 +84,66 @@ if ( ! class_exists( 'Mightyshare_Meta_Boxes' ) ) {
 					switch ( $field['type'] ) :
 						/* text */
 						case 'text':
-						default:{
+						default:
 							render_mightyshare_text_field( $field, $value, $this->prefix );
 							break;
-						}
-						case 'textarea':{
+
+						case 'textarea':
 							render_mightyshare_textarea_field( $field, $value, $this->prefix );
 							break;
-						}
+
 						/* checkbox */
-						case 'checkbox':{
+						case 'checkbox':
 							render_mightyshare_checkbox_field( $field, $value, $this->prefix );
 							break;
-						}
+
 						/* select */
-						case 'select':{
+						case 'select':
 							render_mightyshare_select_field( $field, $value, $this->prefix );
 							break;
-						}
+
 						/* radio */
-						case 'radio':{
+						case 'radio':
 							render_mightyshare_radio_field( $field, $value, $this->prefix );
 							break;
-						}
+
+						/* color */
+						case 'color':
+							render_mightyshare_color_field( $field, $value, $this->prefix );
+							break;
+
 						/* image */
-						case 'image':{
+						case 'image':
 							render_mightyshare_image_field( $field, $value, $this->prefix );
 							break;
-						}
+
 				endswitch;
 					?>
 					</td></tr>
 					<?php
+					if ( isset( $field['modal_after_end'] ) ) {
+						if ( true === $table_opened && false === $table_closed ) {
+							?>
+							</tbody></table>
+							<?php
+							$table_opened = false;
+							$table_closed = false;
+						}
+						?>
+						</div>
+						<?php
+					}
+
+					if ( array_key_last( $this->metabox['fields'] ) === $key && false === $table_closed ) {
+						?>
+						</tbody></table>
+						<?php
+						$table_opened = false;
+						$table_closed = false;
+					}
+
 				endforeach;
 				?>
-				</tbody></table>
 				<?php
 			}
 		}

@@ -8,13 +8,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 add_action( 'admin_enqueue_scripts', function( $hook ) {
-	if ( empty( $_GET['page'] ) || ! in_array( $_GET['page'], array( 'mightyshare' ), true ) ) {
+	global $pagenow;
+
+	if ( ! ( ! empty( $pagenow ) && ( 'post.php' === $pagenow || 'post-new.php' === $pagenow ) ) && ! ( ! empty( $_GET['page'] ) && in_array( $_GET['page'], array( 'mightyshare' ), true ) ) ) {
 		return;
 	}
 
 	if ( ! did_action( 'wp_enqueue_media' ) ) {
 		wp_enqueue_media();
 	}
+
 	wp_register_script(
 		'mightyshare_admin_js',
 		plugin_dir_url( __FILE__ ) . 'assets/admin.js',
@@ -23,14 +26,24 @@ add_action( 'admin_enqueue_scripts', function( $hook ) {
 		true
 	);
 
+	wp_register_style(
+		'mightyshare_admin_css',
+		plugin_dir_url( __FILE__ ) . 'assets/admin.css',
+		array(),
+		MIGHTYSHARE_VERSION,
+	);
+
 	wp_localize_script( 'mightyshare_admin_js', 'mightyshareObject', array(
 		'insertImage'  => __( 'Insert image', 'mightyshare' ),
 		'useThisImage' => __( 'Use this image', 'mightyshare' ),
 		'uploadImage'  => __( 'Upload Image', 'mightyshare' ),
-
 	) );
 
+	wp_enqueue_style( 'wp-color-picker' );
+	wp_enqueue_script( 'wp-color-picker' );
+
 	wp_enqueue_script( 'mightyshare_admin_js' );
+	wp_enqueue_style( 'mightyshare_admin_css' );
 });
 
 function sanitize_mightyshare_field( $value, $type ) {
@@ -106,7 +119,7 @@ function render_mightyshare_select_field( $param, $value = '', $prefix = '' ) {
 
 	if ( ! empty( $param['options'] ) && is_array( $param['options'] ) ) {
 		foreach ( $param['options'] as $v => $l ) {
-			$selected = $v === $value ? ' selected="selected"' : '';
+			$selected = $v === $value ? ' selected' : '';
 			?>
 			<option value="<?php echo esc_attr( $v ); ?>" <?php echo esc_attr( $selected ); ?>><?php echo esc_html( $l ); ?></option>
 			<?php
@@ -117,7 +130,7 @@ function render_mightyshare_select_field( $param, $value = '', $prefix = '' ) {
 	<?php
 	if ( isset( $param['classes'] ) && 'mightyshare_template_field' === $param['classes'] ) {
 		?>
-		<a href="#TB_inline?&width=840&height=750&inlineId=mightyshare-template-picker" class="mightyshare-template-picker-button thickbox button button-primary" data-pickerfor="<?php echo esc_attr( $prefix . $printable_id ); ?>">Browse Templates</a>
+		<a href="#TB_inline?&width=753&height=750&inlineId=mightyshare-template-picker" class="mightyshare-template-picker-button thickbox button button-primary" data-pickerfor="<?php echo esc_attr( $prefix . $printable_id ); ?>">Browse Templates</a>
 		<?php
 		if ( isset( $param['modal'] ) && isset( $param['modal_id'] ) ) {
 			?>

@@ -40,11 +40,22 @@ function toggleApiKeyFieldMask(field) {
 	const selectedField = document.querySelector(field);
 	selectedField.type = this.event.target.checked ? "text" : "password";
 }
+
+function getMightyShareTemplateValue(event) {
+	let templateSelected = event.value;
+	if( ! templateSelected ){
+		if( event.options[event.selectedIndex].text.match(/\((.*)\)/) ){
+			templateSelected = event.options[event.selectedIndex].text.match(/\((.*)\)/).pop();
+		}
+	}
+	return templateSelected;
+}
+
 function renderMightyShareTemplatePreview(event){
 	const result = event.closest("td").querySelector(".mightyshare-image-preview");
-	const templateSelected = event.value;
+	let templateSelected = getMightyShareTemplateValue(event);
 	if( templateSelected && templateSelected != "screenshot-self" ){
-		result.innerHTML = `<img src="https://api.mightyshare.io/template/preview/${templateSelected}.png">`;
+		result.innerHTML = `<img src="https://api.mightyshare.io/template/preview/${templateSelected}.jpeg">`;
 	}else{
 		result.innerHTML = ``;
 	}
@@ -68,9 +79,10 @@ jQuery(document).ready(function(){
 	});
 
 	jQuery(".mightyshare-template-picker-button").on("click", function(e) {
+		let templateSelected = getMightyShareTemplateValue(document.querySelector("#"+jQuery(e.currentTarget).attr("data-pickerfor")));
 		jQuery("#mightyshare-template-picker-modal").attr("data-pickerfor", jQuery(e.currentTarget).attr("data-pickerfor"));
 		jQuery("#mightyshare-template-picker-modal .template-block").removeClass('active');
-		jQuery("#mightyshare-template-picker-modal .template-block[data-mightysharetemplate="+jQuery("#"+jQuery(e.currentTarget).attr("data-pickerfor")).val()+"]").addClass('active');
+		jQuery("#mightyshare-template-picker-modal .template-block[data-mightysharetemplate="+templateSelected+"]").addClass('active');
 	});
 
 	jQuery("#mightyshare-template-picker-modal .template-block").on("click", function(e) {
