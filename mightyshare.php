@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.3.0
+ * Version: 1.3.1
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -1038,7 +1038,7 @@ class Mightyshare_Frontend {
 		if ( ! empty( $returned_template_parts['ID'] ) && $returned_template_parts['ID'] ) {
 
 			// Template variables.
-			if ( $options['enabled_on'][ $returned_template_parts['object_type'] ] && $returned_template_parts['type'] && in_array( $returned_template_parts['type'], $options['enabled_on'][ $returned_template_parts['object_type'] ], true ) ) {
+			if ( ! empty( $options['enabled_on'] ) && $options['enabled_on'][ $returned_template_parts['object_type'] ] && $returned_template_parts['type'] && in_array( $returned_template_parts['type'], $options['enabled_on'][ $returned_template_parts['object_type'] ], true ) ) {
 				$returned_template_parts['is_enabled'] = true;
 			} else {
 				$returned_template_parts['is_enabled'] = false;
