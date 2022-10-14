@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.3.1
+ * Version: 1.3.2
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.3.0' );
+define( 'MIGHTYSHARE_VERSION', '1.3.2' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
@@ -1051,7 +1051,7 @@ class Mightyshare_Frontend {
 			// Check overwrites.
 			$post_display_overwrite = get_post_meta( $returned_template_parts['ID'], 'mightyshare_enabled', true );
 			if ( ! empty( $post_display_overwrite ) ) {
-				$post_display_overwrite                = filter_var( $post_display_overwrite, FILTER_VALIDATE_BOOL );
+				$post_display_overwrite                = filter_var( $post_display_overwrite, FILTER_VALIDATE_BOOLEAN );
 				$returned_template_parts['is_enabled'] = ( $post_display_overwrite ) ? true : false;
 			}
 
