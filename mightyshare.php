@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.3.2
+ * Version: 1.3.3
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.3.2' );
+define( 'MIGHTYSHARE_VERSION', '1.3.3' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
@@ -67,7 +67,7 @@ class Mightyshare_Plugin_Options {
 					$current_post_id = esc_attr( wp_unslash( $_GET['post'] ) );
 
 					if ( ! empty( $current_post_id ) ) {
-						if ( $options['enabled_on']['post_types'] && get_post_type( $current_post_id ) && in_array( get_post_type( $current_post_id ), $options['enabled_on']['post_types'], true ) ) {
+						if ( !empty( $options['enabled_on']['post_types'] ) && get_post_type( $current_post_id ) && in_array( get_post_type( $current_post_id ), $options['enabled_on']['post_types'], true ) ) {
 							$default_enabled = ' (Enabled)';
 						}
 
@@ -652,6 +652,10 @@ class Mightyshare_Plugin_Options {
 			?>
 			Slim SEO
 			<?php
+		} elseif ( in_array( 'wp-seopress/seopress.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+			?>
+			SEOPress
+			<?php
 		} else {
 			?>
 			None
@@ -770,6 +774,10 @@ class Mightyshare_Frontend {
 			// Using Slim SEO.
 			add_filter( 'slim_seo_open_graph_image', array( $this, 'mightyshare_overwrite_slim_seo_opengraph_url' ) );
 			add_filter( 'slim_seo_twitter_card_image', array( $this, 'mightyshare_overwrite_slim_seo_opengraph_url' ) );
+		} elseif ( in_array( 'wp-seopress/seopress.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+			// Using SEOPress.
+			add_filter( 'seopress_social_og_thumb', array( $this, 'mightyshare_overwrite_seopress_opengraph_url' ) );
+			add_filter( 'seopress_social_twitter_card_thumb', array( $this, 'mightyshare_overwrite_seopress_twitter_url' ) );
 		} else {
 			// No plugin manually add og:image meta.
 			$options = get_option( 'mightyshare' );
@@ -859,6 +867,28 @@ class Mightyshare_Frontend {
 
 		if ( $template_parts['is_enabled'] ) {
 			return $this->mightyshare_generate_og_image();
+		}
+
+		return $value;
+	}
+
+	// Using SEOPress.
+	public function mightyshare_overwrite_seopress_opengraph_url( $value ) {
+		$mightyshare_frontend = new Mightyshare_Frontend();
+		$template_parts       = $mightyshare_frontend->get_mightyshare_post_details();
+
+		if ( $template_parts['is_enabled'] ) {
+			return '<meta property="og:image" content="' . esc_url( $this->mightyshare_generate_og_image() ) . '" />';
+		}
+
+		return $value;
+	}
+	public function mightyshare_overwrite_seopress_twitter_url( $value ) {
+		$mightyshare_frontend = new Mightyshare_Frontend();
+		$template_parts       = $mightyshare_frontend->get_mightyshare_post_details();
+
+		if ( $template_parts['is_enabled'] ) {
+			return '<meta property="twitter:image:src" content="' . esc_url( $this->mightyshare_generate_og_image() ) . '" />';
 		}
 
 		return $value;
@@ -1010,7 +1040,7 @@ class Mightyshare_Frontend {
 			$returned_template_parts['enable_description'] = true;
 		}
 
-		if ( $wp_query->is_singular ) {
+		if ( $wp_query->is_singular && !empty( $template_parts ) ) {
 			$returned_template_parts['ID']          = $template_parts->ID;
 			$returned_template_parts['title']       = $template_parts->post_title;
 			$returned_template_parts['description'] = $template_parts->post_excerpt;
@@ -1018,7 +1048,7 @@ class Mightyshare_Frontend {
 			$returned_template_parts['object_type'] = 'post_types';
 		}
 
-		if ( $wp_query->is_archive ) {
+		if ( $wp_query->is_archive && !empty( $template_parts ) ) {
 			$returned_template_parts['ID']          = $template_parts->term_id;
 			$returned_template_parts['title']       = $template_parts->name;
 			$returned_template_parts['description'] = $template_parts->category_description;
