@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.3.6
+ * Version: 1.3.7
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.3.6' );
+define( 'MIGHTYSHARE_VERSION', '1.3.7' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
@@ -172,25 +172,6 @@ class Mightyshare_Plugin_Options {
 	}
 
 	function mightyshare_merge_options( $data ) {
-		$existing = get_option( 'mightyshare' );
-		if ( ! is_array( $existing ) || ! is_array( $data ) ) {
-			return $data;
-		}
-
-		if ( isset( $data['current_settings_page_name'] ) && 'options' === $data['current_settings_page_name'] ) {
-			$checkboxes = array(
-				'enable_mightyshare',
-				'enable_description',
-				'output_opengraph',
-			);
-
-			foreach ( $checkboxes as $checkbox ) {
-				if ( empty ( $data[$checkbox] ) ) {
-					unset( $existing[$checkbox] );
-				}
-			}
-		}
-
 		if ( isset( $data['mightyshare_api_key'] ) && ! empty( $data['mightyshare_api_key'] ) ) {
 			$body = [
 					'apikey'  => $data['mightyshare_api_key'],
@@ -223,6 +204,26 @@ class Mightyshare_Plugin_Options {
 					if ( isset( $mightyshare_plan_response->type ) ){
 						$data['plan_response_type'] = $mightyshare_plan_response->type;
 					}
+			}
+		}
+
+		$existing = get_option( 'mightyshare' );
+
+		if ( ! is_array( $existing ) || ! is_array( $data ) ) {
+			return $data;
+		}
+
+		if ( isset( $data['current_settings_page_name'] ) && 'options' === $data['current_settings_page_name'] ) {
+			$checkboxes = array(
+				'enable_mightyshare',
+				'enable_description',
+				'output_opengraph',
+			);
+
+			foreach ( $checkboxes as $checkbox ) {
+				if ( empty ( $data[$checkbox] ) ) {
+					unset( $existing[$checkbox] );
+				}
 			}
 		}
 
@@ -413,6 +414,7 @@ class Mightyshare_Plugin_Options {
 
 				$enabled_on['post_types'] = get_post_types( array( 'public' => true ), 'objects', 'and' );
 				$enabled_on['taxonomies'] = get_taxonomies( array( 'public' => true ), 'objects', 'and' );
+				$enabled_on['users'] = (object) array( 'user' => (object) array( 'name' => 'users', 'label' => 'Authors' ) );
 
 				if ( ! empty( $enabled_on ) ) {
 
@@ -551,7 +553,12 @@ class Mightyshare_Plugin_Options {
 		// Field output.
 		?>
 		<input type="<?php echo esc_attr( $field_type ); ?>" name="mightyshare[mightyshare_api_key]" class="regular-text	mightyshare_api_key_field" placeholder="<?php echo esc_attr( __( 'API KEY', 'mightyshare' ) ); ?>" id="mightyshare_api_key_field" value="<?php echo esc_attr( $value_api_key ); ?>"> <label><input type="checkbox" onclick="toggleApiKeyFieldMask('.mightyshare_api_key_field')" <?php echo esc_attr( $checked ); ?>> <?php echo wp_kses_post( __( 'Display API Key', 'mightyshare' ) ); ?></label>
-		<p class="mightyshare-description description"><span id="mightyshare-api-key-status" class="loaded <?php echo esc_attr( $options['plan_response_type'] ); ?>"><?php echo esc_html( $options['plan_message'] ); ?></span><?php echo wp_kses_post( __( 'Your MightyShare.io API Key. <br /><small>Don\'t have an API Key? <a href="https://mightyshare.io/register" rel="nofollow noopener" target="_blank">Get a free MightyShare API Key</a></small>', 'mightyshare' ) ); ?></p>
+		<p class="mightyshare-description description">
+			<?php if( ! empty( $options ) && ! empty( $options['plan_response_type'] ) && ! empty( $options['plan_message'] ) ) { ?>
+				<span id="mightyshare-api-key-status" class="loaded <?php echo esc_attr( $options['plan_response_type'] ); ?>"><?php echo esc_html( $options['plan_message'] ); ?>
+				</span>
+			<?php }; ?>
+			<?php echo wp_kses_post( __( 'Your MightyShare.io API Key. <br /><small>Don\'t have an API Key? <a href="https://mightyshare.io/register" rel="nofollow noopener" target="_blank">Get a free MightyShare API Key</a></small>', 'mightyshare' ) ); ?></p>
 		<?php
 	}
 
@@ -563,6 +570,7 @@ class Mightyshare_Plugin_Options {
 		// Field output.
 		$enabled_on['post_types'] = get_post_types( array( 'public' => true ), 'objects', 'and' );
 		$enabled_on['taxonomies'] = get_taxonomies( array( 'public' => true ), 'objects', 'and' );
+		$enabled_on['users'] = (object) array( 'user' => (object) array( 'name' => 'users', 'label' => 'Authors' ) );
 
 		if ( ! empty( $enabled_on ) ) {
 			$used_labels = array();
@@ -580,7 +588,7 @@ class Mightyshare_Plugin_Options {
 
 					// Set default values.
 					$default_value = 'yes';
-					if ( 'taxonomies' === $enabled_key ) {
+					if ( 'taxonomies' === $enabled_key || 'users' === $enabled_key ) {
 						$default_value = 'no';
 					}
 
@@ -954,25 +962,39 @@ class Mightyshare_Frontend {
 		}
 
 		if ( ! empty( $template_parts['background'] ) && $template_parts['background'] ) {
-			$image_url = is_numeric( $template_parts['background'] ) ? wp_get_attachment_image_src( $template_parts['background'], 'full' )[0] : $template_parts['background'];
-			array_push(
-				$template_json,
-				array(
-					'name'      => 'background',
-					'image_url' => rawurlencode( htmlspecialchars_decode( $image_url ) ),
-				)
-			);
+			$image_url = is_numeric( $template_parts['background'] ) ? wp_get_attachment_image_src( $template_parts['background'], 'full' ) : $template_parts['background'];
+
+			if( ! empty( $image_url ) && is_array( $image_url ) ){
+				$image_url = $image_url[0];
+			}
+
+			if( ! empty( $image_url ) ){
+				array_push(
+					$template_json,
+					array(
+						'name'      => 'background',
+						'image_url' => rawurlencode( htmlspecialchars_decode( $image_url ) ),
+					)
+				);
+			}
 		}
 
 		if ( ! empty( $template_parts['logo'] ) && $template_parts['logo'] ) {
-			$image_url = is_numeric( $template_parts['logo'] ) ? wp_get_attachment_image_src( $template_parts['logo'], 'full' )[0] : $template_parts['logo'];
-			array_push(
-				$template_json,
-				array(
-					'name'      => 'logo',
-					'image_url' => rawurlencode( htmlspecialchars_decode( $image_url ) ),
-				)
-			);
+			$image_url = is_numeric( $template_parts['logo'] ) ? wp_get_attachment_image_src( $template_parts['logo'], 'full' ) : $template_parts['logo'];
+			
+			if( ! empty( $image_url ) && is_array( $image_url ) ){
+				$image_url = $image_url[0];
+			}
+
+			if( ! empty( $image_url ) ){
+				array_push(
+					$template_json,
+					array(
+						'name'      => 'logo',
+						'image_url' => rawurlencode( htmlspecialchars_decode( $image_url ) ),
+					)
+				);
+			}
 		}
 
 		if ( ! empty( $template_parts['primary_font'] ) ) {
@@ -1054,6 +1076,14 @@ class Mightyshare_Frontend {
 			$returned_template_parts['description'] = $template_parts->category_description;
 			$returned_template_parts['type']        = $template_parts->taxonomy;
 			$returned_template_parts['object_type'] = 'taxonomies';
+		}
+
+		if ( $wp_query->is_author && !empty( $template_parts ) ) {
+			$returned_template_parts['ID']          = $template_parts->ID;
+			$returned_template_parts['title']       = $template_parts->display_name;
+			$returned_template_parts['description'] = get_the_author_meta('description', $template_parts->ID);
+			$returned_template_parts['type']        = 'user';
+			$returned_template_parts['object_type'] = 'users';
 		}
 
 		// Get post type overwrites.
@@ -1160,6 +1190,9 @@ class Mightyshare_Globals {
 			'business-1'      => 'business-1',
 			'travel-1'        => 'travel-1',
 			'8bit-1'          => '8bit-1',
+			'bar-1'           => 'bar-1',
+			'bar-2'           => 'bar-2',
+			'bar-3'           => 'bar-3',
 			'screenshot-self' => 'Use a screenshot of the current page',
 		);
 
@@ -2671,7 +2704,7 @@ class Mightyshare_Globals {
 			),
 		);
 
-		if ( 'default' === $value || ( is_object( $value ) && ( 'WP_Post_Type' === get_class( $value ) || 'WP_Taxonomy' === get_class( $value ) ) ) ) {
+		if ( 'default' === $value || ( is_object( $value ) && ( 'WP_Post_Type' === get_class( $value ) || 'WP_Taxonomy' === get_class( $value ) ) ) || ( ! empty( $value->name ) && 'users' === $value->name ) ) {
 			$mightyshare_template_display_options['description'] =
 				array(
 					'label'         => 'Enable Subheadings',
@@ -2690,6 +2723,10 @@ class Mightyshare_Globals {
 
 				if ( is_object( $value ) && 'WP_Taxonomy' === get_class( $value ) ) {
 					$mightyshare_template_display_options['description']['field_options']['description'] = 'Display a subheading in compatible templates (uses the taxonomy description).';
+				}
+
+				if ( ! empty( $value->name ) && 'users' === $value->name ) {
+					$mightyshare_template_display_options['description']['field_options']['description'] = 'Display a subheading in compatible templates (uses the author biography).';
 				}
 		}
 
