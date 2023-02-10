@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.3.7
+ * Version: 1.3.8
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.3.7' );
+define( 'MIGHTYSHARE_VERSION', '1.3.8' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
@@ -102,7 +102,7 @@ class Mightyshare_Plugin_Options {
 							'false' => 'Disabled',
 							'true'  => 'Enabled',
 						),
-						'description' => '<a href="https://developers.facebook.com/tools/debug/" rel="nofollow noopener" target="_blank">' . __( 'Open Facebook\'s Open Graph Tester', 'mightyshare') . '</a>',
+						'description' => '<a href="https://socialmediasharepreview.com/" rel="nofollow noopener" target="_blank">' . __( 'Open Graph Tester', 'mightyshare') . '</a>',
 					),
 					array(
 						'id'      => 'mightyshare_template',
@@ -941,93 +941,42 @@ class Mightyshare_Frontend {
 		// Configure the template.
 		$template_json = array();
 
-		if ( ! empty( $template_parts['title'] ) ) {
-			array_push(
-				$template_json,
-				array(
-					'name' => 'title',
-					'text' => rawurlencode( htmlspecialchars_decode( $template_parts['title'] ) ),
-				)
-			);
-		}
-
-		if ( ! empty( $template_parts['description'] ) ) {
-			array_push(
-				$template_json,
-				array(
-					'name' => 'description',
-					'text' => rawurlencode( htmlspecialchars_decode( $template_parts['description'] ) ),
-				)
-			);
-		}
-
-		if ( ! empty( $template_parts['background'] ) && $template_parts['background'] ) {
-			$image_url = is_numeric( $template_parts['background'] ) ? wp_get_attachment_image_src( $template_parts['background'], 'full' ) : $template_parts['background'];
-
-			if( ! empty( $image_url ) && is_array( $image_url ) ){
-				$image_url = $image_url[0];
+		foreach ( $template_parts as $value_key => $value ) {
+			if ( $value_key === 'template' && $value === 'screenshot-self' ) {
+				break;
 			}
+			$type = 'text';
+			if ( in_array( $value_key, ['is_enabled', 'template', 'ID', 'type', 'object_type'] ) ) {
+				continue;
+			} elseif ( $value_key === 'primary_color' ) {
+				$type = 'color';
+			} elseif ( $value_key === 'primary_font' ) {
+				$type = 'google_font';
+				$value_key = 'google_font';
+				$value = str_replace(' ', '+', $template_parts['primary_font'] );
+			} elseif ( $value_key === 'background' || $value_key === 'logo' ) {
+				$type = 'image_url';
+				$image_url = is_numeric( $value ) ? wp_get_attachment_image_src( $value, 'full' ) : $value;
+				if( ! empty( $image_url ) && is_array( $image_url ) ){
+					$image_url = $image_url[0];
+				}
+				$value = rawurlencode( htmlspecialchars_decode( $image_url ) );
+			} elseif ( $value_key === 'title' || $value_key === 'description' ) {
+				$value = rawurlencode( htmlspecialchars_decode( $value ) );
+			};
 
-			if( ! empty( $image_url ) ){
-				array_push(
-					$template_json,
-					array(
-						'name'      => 'background',
-						'image_url' => rawurlencode( htmlspecialchars_decode( $image_url ) ),
-					)
-				);
-			}
-		}
-
-		if ( ! empty( $template_parts['logo'] ) && $template_parts['logo'] ) {
-			$image_url = is_numeric( $template_parts['logo'] ) ? wp_get_attachment_image_src( $template_parts['logo'], 'full' ) : $template_parts['logo'];
-			
-			if( ! empty( $image_url ) && is_array( $image_url ) ){
-				$image_url = $image_url[0];
-			}
-
-			if( ! empty( $image_url ) ){
-				array_push(
-					$template_json,
-					array(
-						'name'      => 'logo',
-						'image_url' => rawurlencode( htmlspecialchars_decode( $image_url ) ),
-					)
-				);
-			}
-		}
-
-		if ( ! empty( $template_parts['primary_font'] ) ) {
 			array_push(
 				$template_json,
 				array(
-					'name'        => 'google_font',
-					'google_font' => str_replace(' ', '+', $template_parts['primary_font'] ),
+					'name' => $value_key,
+					$type  => $value,
 				)
 			);
 		}
 
-		if ( ! empty( $template_parts['logo_width'] ) ) {
-			array_push(
-				$template_json,
-				array(
-					'name' => 'logo_width',
-					'text' => $template_parts['logo_width'],
-				)
-			);
+		if ( ! empty( $template_json ) ) {
+			$render_options['template_values'] = wp_json_encode( $template_json );
 		}
-
-		if ( ! empty( $template_parts['primary_color'] ) ) {
-			array_push(
-				$template_json,
-				array(
-					'name'  => 'primary_color',
-					'color' => $template_parts['primary_color'],
-				)
-			);
-		}
-
-		$render_options['template_values'] = wp_json_encode( $template_json );
 
 		$mightyshare = new Mightyshare_Generate_Engine();
 
@@ -1127,7 +1076,7 @@ class Mightyshare_Frontend {
 		}
 
 		// Check is subheadings are enabled.
-		if ( empty( $returned_template_parts['enable_description'] ) ) {
+		if ( empty( $returned_template_parts['enable_description'] ) || $returned_template_parts['enable_description'] === false ) {
 			$returned_template_parts['description'] = null;
 		}
 
@@ -1179,6 +1128,7 @@ class Mightyshare_Globals {
 			'basic-1'         => 'basic-1',
 			'basic-2'         => 'basic-2',
 			'basic-3'         => 'basic-3',
+			'basic-4'         => 'basic-4',
 			'clean-1'         => 'clean-1',
 			'clean-2'         => 'clean-2',
 			'clean-3'         => 'clean-3',

@@ -5,7 +5,7 @@ Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
 Requires at least: 5.4
 Tested up to: 6.1
 Requires PHP: 7.4
-Stable tag: 1.3.7
+Stable tag: 1.3.8
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
@@ -13,7 +13,7 @@ Automatically generate social share preview images with MightyShare!
 
 == Description ==
 
-### MIGHTYSHARE: GENERATE SOCIAL IMAGES
+### MIGHTYSHARE: GENERATE SOCIAL SHARE IMAGES
 
 Automatically generate social share preview images with **[MightyShare](https://mightyshare.io/)**! MightyShare takes your post title and featured image to generate a beautiful share image for your content. Compatible with posts, pages, and custom post types your social shares will look stunning in no time. Customize [templates](https://mightyshare.io/templates/) with your brand colors, logo, and more.
 
@@ -68,6 +68,11 @@ If you are using an SEO plugin be sure to have a default image set for the type 
 == Screenshots ==
 
 == Changelog ==
+
+= 1.3.8 =
+* New template added (basic-4).
+* Updated Open Graph test link.
+* Code cleanup for future updates.
 
 = 1.3.7 =
 * New templates added (bar-1, bar-2 & bar-3).
