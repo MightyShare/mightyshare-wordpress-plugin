@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.3.8
+ * Version: 1.3.9
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.3.8' );
+define( 'MIGHTYSHARE_VERSION', '1.3.9' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
@@ -174,7 +174,7 @@ class Mightyshare_Plugin_Options {
 	function mightyshare_merge_options( $data ) {
 		if ( isset( $data['mightyshare_api_key'] ) && ! empty( $data['mightyshare_api_key'] ) ) {
 			$body = [
-					'apikey'  => $data['mightyshare_api_key'],
+					'apikey' => trim($data['mightyshare_api_key']),
 			];
 			$body = wp_json_encode( $body );
 
@@ -666,7 +666,7 @@ class Mightyshare_Plugin_Options {
 			<?php
 		} else {
 			?>
-			None
+			<span class="mightyshare-error">None Detected</span>
 			<?php
 		}
 	}
@@ -926,7 +926,7 @@ class Mightyshare_Frontend {
 
 		// Get API Key.
 		$options        = get_option( 'mightyshare' );
-		$key['api_key'] = $options['mightyshare_api_key'];
+		$key['api_key'] = trim($options['mightyshare_api_key']);
 
 		// Setup defaults for render.
 		$render_options['cache']  = 'true';
@@ -1138,6 +1138,7 @@ class Mightyshare_Globals {
 			'float-1'         => 'float-1',
 			'float-2'         => 'float-2',
 			'business-1'      => 'business-1',
+			'business-2'      => 'business-2',
 			'travel-1'        => 'travel-1',
 			'8bit-1'          => '8bit-1',
 			'bar-1'           => 'bar-1',

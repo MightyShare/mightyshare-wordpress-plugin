@@ -116,10 +116,10 @@
 #mightyshare-api-key-status.loaded{
     display:block
 }
-#mightyshare-api-key-status.loaded.success{
+#mightyshare-api-key-status.loaded.success,.mightyshare-success{
     color:#27ae60;
 }
-#mightyshare-api-key-status.loaded.fail{
+#mightyshare-api-key-status.loaded.fail,.mightyshare-error{
     color:#c0392b;
 }
 .mightyshare-template-picker{
