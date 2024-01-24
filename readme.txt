@@ -3,9 +3,9 @@ Contributors: someguy9
 Donate link: https://www.buymeacoffee.com/someguy
 Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
 Requires at least: 5.4
-Tested up to: 6.3
+Tested up to: 6.4
 Requires PHP: 7.4
-Stable tag: 1.3.10
+Stable tag: 1.3.11
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
@@ -13,9 +13,9 @@ Automatically generate social share preview images with MightyShare!
 
 == Description ==
 
-### MIGHTYSHARE: GENERATE SOCIAL SHARE IMAGES
+### MIGHTYSHARE: GENERATE SOCIAL SHARE OPEN GRAPH IMAGES
 
-Automatically generate social share preview images with **[MightyShare](https://mightyshare.io/)**! MightyShare takes your post title and featured image to generate a beautiful share image for your content. Compatible with posts, pages, and custom post types your social shares will look stunning in no time. Customize [templates](https://mightyshare.io/templates/) with your brand colors, logo, and more.
+Automatically generate social share preview images (also known as Open Graph images) with **[MightyShare](https://mightyshare.io/)**! MightyShare takes your post title and featured image to generate a beautiful share image for your content. Compatible with posts, pages, and custom post types your social shares will look stunning in no time. Customize [templates](https://mightyshare.io/templates/) with your brand colors, logo, and more.
 
 To use the plugin you'll need to [create a free MightyShare account](https://mightyshare.io/register/).
 
@@ -68,6 +68,11 @@ If you are using an SEO plugin be sure to have a default image set for the type 
 == Screenshots ==
 
 == Changelog ==
+
+= 1.3.11 =
+* Tested up to WordPress 6.4.
+* PHP warning bug fixes.
+* API usage on MightyShare.io dashboard now shows the correct usage.
 
 = 1.3.10 =
 * New template added (news-1).

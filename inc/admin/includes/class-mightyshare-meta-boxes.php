@@ -9,6 +9,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 if ( ! class_exists( 'Mightyshare_Meta_Boxes' ) ) {
 	class Mightyshare_Meta_Boxes {
+		public $metabox;
+		public $prefix;
 
 		public function __construct( $metabox ) {
 			$this->metabox = $metabox;
