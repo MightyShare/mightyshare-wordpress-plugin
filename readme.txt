@@ -3,9 +3,9 @@ Contributors: someguy9
 Donate link: https://www.buymeacoffee.com/someguy
 Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
 Requires at least: 5.4
-Tested up to: 6.4
+Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.3.12
+Stable tag: 1.3.13
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
@@ -69,6 +69,10 @@ If you are using an SEO plugin be sure to have a default image set for the type 
 == Screenshots ==
 
 == Changelog ==
+
+= 1.3.13 =
+* WordPress 6.5 compatibility.
+* [Frontend PHP](https://mightyshare.io/docs/get_mightyshare_url/) function added for developers to use.
 
 = 1.3.12 =
 * New template added (news-2).

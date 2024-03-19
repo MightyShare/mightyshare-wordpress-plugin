@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.3.12
+ * Version: 1.3.13
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.3.12' );
+define( 'MIGHTYSHARE_VERSION', '1.3.13' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
@@ -67,7 +67,7 @@ class Mightyshare_Plugin_Options {
 					$current_post_id = esc_attr( wp_unslash( $_GET['post'] ) );
 
 					if ( ! empty( $current_post_id ) ) {
-						if ( !empty( $options['enabled_on']['post_types'] ) && get_post_type( $current_post_id ) && in_array( get_post_type( $current_post_id ), $options['enabled_on']['post_types'], true ) ) {
+						if ( ! empty( $options['enabled_on']['post_types'] ) && get_post_type( $current_post_id ) && in_array( get_post_type( $current_post_id ), $options['enabled_on']['post_types'], true ) ) {
 							$default_enabled = ' (Enabled)';
 						}
 
@@ -755,6 +755,19 @@ class Mightyshare_Generate_Engine {
 	}
 }
 
+class Mightyshare_Public_Functions {
+    public static function get_mightyshare_url($post_id = 0, $options = array()) {
+        $mightyshare_frontend = new Mightyshare_Frontend();
+        $template_parts = $mightyshare_frontend->get_mightyshare_post_details($post_id);
+
+		if ( ! empty( $options ) ) {
+			$template_parts = array_merge($template_parts, $options);
+		}
+
+        return Mightyshare_Frontend::mightyshare_generate_og_image($template_parts);
+    }
+}
+
 class Mightyshare_Frontend {
 
 	public function __construct() {
@@ -917,11 +930,12 @@ class Mightyshare_Frontend {
 	}
 
 	// Generate Social Image for Post using MightyShare.
-	public function mightyshare_generate_og_image( $template_parts = null ) {
+	public static function mightyshare_generate_og_image( $template_parts = null ) {
 		global $wp;
 
 		if ( ! $template_parts ) {
-			$template_parts = $this->get_mightyshare_post_details();
+			$mightyshare_frontend = new Mightyshare_Frontend();
+			$template_parts = $mightyshare_frontend->get_mightyshare_post_details();
 		}
 
 		// Get API Key.
@@ -930,8 +944,8 @@ class Mightyshare_Frontend {
 
 		// Setup defaults for render.
 		$render_options['cache']  = 'true';
-		$render_options['height'] = '630';
-		$render_options['width']  = '1200';
+		$render_options['height'] = ! empty( $template_parts['height'] ) ? $template_parts['height'] : '630';
+		$render_options['width']  = ! empty( $template_parts['width'] ) ? $template_parts['width'] : '1200';
 
 		// Grab the template.
 		if ( ! empty( $template_parts['template'] ) ) {
@@ -980,7 +994,7 @@ class Mightyshare_Frontend {
 
 		$mightyshare = new Mightyshare_Generate_Engine();
 
-		return $mightyshare->get_image_url( home_url( $wp->request ), $render_options, $key );
+		return $mightyshare->get_image_url( ! empty( $template_parts['overwrite_page_url'] ) ? $template_parts['overwrite_page_url'] : home_url( $wp->request ), $render_options, $key );
 	}
 
 	// Get the current post's details no matter type.
@@ -994,8 +1008,9 @@ class Mightyshare_Frontend {
 		}
 
 		global $wp_query;
+		global $post;
 
-		$template_parts          = get_queried_object();
+		$template_parts          = get_queried_object() ? get_queried_object() : $post;
 		$returned_template_parts = array();
 
 		// Defaults.
@@ -1011,7 +1026,7 @@ class Mightyshare_Frontend {
 			$returned_template_parts['enable_description'] = true;
 		}
 
-		if ( $wp_query->is_singular && !empty( $template_parts ) ) {
+		if ( ( $wp_query->is_singular || $wp_query->is_feed ) && ! empty( $template_parts ) ) {
 			$returned_template_parts['ID']          = $template_parts->ID;
 			$returned_template_parts['title']       = $template_parts->post_title;
 			$returned_template_parts['description'] = $template_parts->post_excerpt;
@@ -1019,7 +1034,7 @@ class Mightyshare_Frontend {
 			$returned_template_parts['object_type'] = 'post_types';
 		}
 
-		if ( $wp_query->is_archive && !empty( $template_parts ) ) {
+		if ( $wp_query->is_archive && ! empty( $template_parts ) ) {
 			$returned_template_parts['ID']          = $template_parts->term_id;
 			$returned_template_parts['title']       = $template_parts->name;
 			$returned_template_parts['description'] = $template_parts->category_description;
@@ -1027,12 +1042,16 @@ class Mightyshare_Frontend {
 			$returned_template_parts['object_type'] = 'taxonomies';
 		}
 
-		if ( $wp_query->is_author && !empty( $template_parts ) ) {
+		if ( $wp_query->is_author && ! empty( $template_parts ) ) {
 			$returned_template_parts['ID']          = $template_parts->ID;
 			$returned_template_parts['title']       = $template_parts->display_name;
 			$returned_template_parts['description'] = get_the_author_meta('description', $template_parts->ID);
 			$returned_template_parts['type']        = 'user';
 			$returned_template_parts['object_type'] = 'users';
+		}
+
+		if ( $wp_query->is_feed ) {
+			$returned_template_parts['overwrite_page_url'] = get_the_permalink($template_parts->ID);
 		}
 
 		// Get post type overwrites.
