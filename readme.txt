@@ -5,7 +5,7 @@ Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
 Requires at least: 5.4
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.3.13
+Stable tag: 1.3.14
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
@@ -69,6 +69,9 @@ If you are using an SEO plugin be sure to have a default image set for the type 
 == Screenshots ==
 
 == Changelog ==
+
+= 1.3.14 =
+* Bug fix for PHP warning.
 
 = 1.3.13 =
 * WordPress 6.5 compatibility.
