@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.3.14
+ * Version: 1.3.15
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.3.14' );
+define( 'MIGHTYSHARE_VERSION', '1.3.15' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
@@ -1035,10 +1035,10 @@ class Mightyshare_Frontend {
 		}
 
 		if ( $wp_query->is_archive && ! empty( $template_parts ) ) {
-			$returned_template_parts['ID']          = $template_parts->term_id;
-			$returned_template_parts['title']       = $template_parts->name;
-			$returned_template_parts['description'] = $template_parts->category_description;
-			$returned_template_parts['type']        = $template_parts->taxonomy;
+			$returned_template_parts['ID']          = isset($template_parts->term_id) ? $template_parts->term_id : '';
+			$returned_template_parts['title']       = isset($template_parts->name) ? $template_parts->name : '';
+			$returned_template_parts['description'] = isset($template_parts->category_description) ? $template_parts->category_description : '';
+			$returned_template_parts['type'] = isset($template_parts->taxonomy) ? $template_parts->taxonomy : '';
 			$returned_template_parts['object_type'] = 'taxonomies';
 		}
 
