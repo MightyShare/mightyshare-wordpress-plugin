@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.3.15
+ * Version: 1.3.16
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.3.15' );
+define( 'MIGHTYSHARE_VERSION', '1.3.16' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
@@ -640,27 +640,28 @@ class Mightyshare_Plugin_Options {
 	}
 
 	public function render_detected_seo_plugin_field() {
-		if ( in_array( 'wordpress-seo/wp-seo.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) || in_array( 'wordpress-seo-premium/wp-seo-premium.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+		$mightyshare_globals = new Mightyshare_Globals();
+		if ( $mightyshare_globals->isYoastSEOActive() ) {
 			?>
 			Yoast SEO
 			<?php
-		} elseif ( in_array( 'seo-by-rank-math/rank-math.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+		} elseif ( $mightyshare_globals->isRankMathActive() ) {
 			?>
 			RankMath
 			<?php
-		} elseif ( in_array( 'all-in-one-seo-pack/all_in_one_seo_pack.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+		} elseif ( $mightyshare_globals->isAllInOneSEOActive() ) {
 			?>
 			All in One SEO
 			<?php
-		} elseif ( in_array( 'autodescription/autodescription.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+		} elseif ( $mightyshare_globals->isTheSEOFrameworkActive() ) {
 			?>
 			The SEO Framework
 			<?php
-		} elseif ( in_array( 'slim-seo/slim-seo.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+		} elseif ( $mightyshare_globals->isSlimSEOActive() ) {
 			?>
 			Slim SEO
 			<?php
-		} elseif ( in_array( 'wp-seopress/seopress.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+		} elseif ( $mightyshare_globals->isSEOPressActive() ) {
 			?>
 			SEOPress
 			<?php
@@ -777,25 +778,26 @@ class Mightyshare_Frontend {
 
 	// Replace OG image if using an SEO plugin.
 	public function mightyshare_opengraph_meta_tags() {
-		if ( in_array( 'wordpress-seo/wp-seo.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) || in_array( 'wordpress-seo-premium/wp-seo-premium.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+		$mightyshare_globals = new Mightyshare_Globals();
+		if ( $mightyshare_globals->isYoastSEOActive() ) {
 			// Using Yoast SEO.
 			add_filter( 'wpseo_frontend_presentation', array( $this, 'mightyshare_overwrite_yoast_url' ) );
-		} elseif ( in_array( 'seo-by-rank-math/rank-math.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+		} elseif ( $mightyshare_globals->isRankMathActive() ) {
 			// Using Rank Math.
 			add_filter( 'rank_math/opengraph/facebook/image', array( $this, 'mightyshare_overwrite_rankmath_opengraph_url' ) );
 			add_filter( 'rank_math/opengraph/twitter/image', array( $this, 'mightyshare_overwrite_rankmath_opengraph_url' ) );
-		} elseif ( in_array( 'all-in-one-seo-pack/all_in_one_seo_pack.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+		} elseif ( $mightyshare_globals->isAllInOneSEOActive() ) {
 			// Using All in One SEO.
 			add_filter( 'aioseo_facebook_tags', array( $this, 'mightyshare_overwrite_all_in_one_seo_facebook_opengraph_url' ) );
 			add_filter( 'aioseo_twitter_tags', array( $this, 'mightyshare_overwrite_all_in_one_seo_twitter_opengraph_url' ) );
-		} elseif ( in_array( 'autodescription/autodescription.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+		} elseif ( $mightyshare_globals->isTheSEOFrameworkActive() ) {
 			// Using The SEO Framework.
 			add_filter( 'the_seo_framework_image_details', array( $this, 'mightyshare_overwrite_the_seo_framework_opengraph_url' ) );
-		} elseif ( in_array( 'slim-seo/slim-seo.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+		} elseif ( $mightyshare_globals->isSlimSEOActive() ) {
 			// Using Slim SEO.
 			add_filter( 'slim_seo_open_graph_image', array( $this, 'mightyshare_overwrite_slim_seo_opengraph_url' ) );
 			add_filter( 'slim_seo_twitter_card_image', array( $this, 'mightyshare_overwrite_slim_seo_opengraph_url' ) );
-		} elseif ( in_array( 'wp-seopress/seopress.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) ) {
+		} elseif ( $mightyshare_globals->isSEOPressActive() ) {
 			// Using SEOPress.
 			add_filter( 'seopress_social_og_thumb', array( $this, 'mightyshare_overwrite_seopress_opengraph_url' ) );
 			add_filter( 'seopress_social_twitter_card_thumb', array( $this, 'mightyshare_overwrite_seopress_twitter_url' ) );
@@ -1169,6 +1171,30 @@ class Mightyshare_Globals {
 		);
 
 		return $theme_options;
+	}
+	
+	public function isYoastSEOActive() {
+		return in_array( 'wordpress-seo/wp-seo.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) || in_array( 'wordpress-seo-premium/wp-seo-premium.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) || defined( 'WPSEO_VERSION' );
+	}
+
+	public function isRankMathActive() {
+		return in_array( 'seo-by-rank-math/rank-math.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true );
+	}
+
+	public function isAllInOneSEOActive() {
+		return in_array( 'all-in-one-seo-pack/all_in_one_seo_pack.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) || in_array( 'all-in-one-seo-pack-pro/all_in_one_seo_pack.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) || defined( 'AIOSEO_PHP_VERSION_DIR' );
+	}
+
+	public function isTheSEOFrameworkActive() {
+		return in_array( 'autodescription/autodescription.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) || defined( 'THE_SEO_FRAMEWORK_VERSION' );
+	}
+
+	public function isSlimSEOActive() {
+		return in_array( 'slim-seo/slim-seo.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) || defined( 'SLIM_SEO_VER' );
+	}
+
+	public function isSEOPressActive() {
+		return in_array( 'wp-seopress/seopress.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) || defined( 'SEOPRESS_VERSION' );
 	}
 
 	public function mightyshare_template_options( $value, $setting_prefix ) {
