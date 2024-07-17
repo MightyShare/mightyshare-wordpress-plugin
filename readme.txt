@@ -3,9 +3,9 @@ Contributors: someguy9
 Donate link: https://www.buymeacoffee.com/someguy
 Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
 Requires at least: 5.4
-Tested up to: 6.5
+Tested up to: 6.6
 Requires PHP: 7.4
-Stable tag: 1.3.16
+Stable tag: 1.3.17
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
@@ -69,6 +69,10 @@ If you are using an SEO plugin be sure to have a default image set for the type 
 == Screenshots ==
 
 == Changelog ==
+
+= 1.3.17 =
+* Tested up to WordPress 6.6.
+* New template added (basic-5, basic-6).
 
 = 1.3.16 =
 * Bug fix for identifying if All in One SEO is active (and support for AIO SEO Pro).
