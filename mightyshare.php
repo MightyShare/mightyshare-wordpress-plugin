@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.3.17
+ * Version: 1.3.18
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.3.17' );
+define( 'MIGHTYSHARE_VERSION', '1.3.18' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
@@ -665,6 +665,10 @@ class Mightyshare_Plugin_Options {
 			?>
 			SEOPress
 			<?php
+		} elseif ( $mightyshare_globals->isSquirrlyActive() ) {
+			?>
+			Squirrly SEO
+			<?php
 		} else {
 			?>
 			<span class="mightyshare-error">None Detected</span>
@@ -801,6 +805,9 @@ class Mightyshare_Frontend {
 			// Using SEOPress.
 			add_filter( 'seopress_social_og_thumb', array( $this, 'mightyshare_overwrite_seopress_opengraph_url' ) );
 			add_filter( 'seopress_social_twitter_card_thumb', array( $this, 'mightyshare_overwrite_seopress_twitter_url' ) );
+		} elseif ( $mightyshare_globals->isSquirrlyActive() ) {
+			// Using Squirrly SEO.
+			add_filter('sq_post', array($this, 'mightyshare_overwrite_squirrly_post') );
 		} else {
 			// No plugin manually add og:image meta.
 			$options = get_option( 'mightyshare' );
@@ -915,6 +922,21 @@ class Mightyshare_Frontend {
 		}
 
 		return $value;
+	}
+
+	// Using Squirrly SEO.
+	public function mightyshare_overwrite_squirrly_post($post) {
+		$mightyshare_frontend = new Mightyshare_Frontend();
+		$template_parts = $mightyshare_frontend->get_mightyshare_post_details();
+		
+		if ($template_parts['is_enabled']) {
+			$post->sq->og_media = $this->mightyshare_generate_og_image();
+			$post->sq->og_media_width = '1200';
+			$post->sq->og_media_height = '630';
+			$post->sq->og_media_type = 'image/jpeg';
+		}
+		
+		return $post;
 	}
 
 	// No SEO plugin so render tags.
@@ -1197,6 +1219,10 @@ class Mightyshare_Globals {
 
 	public function isSEOPressActive() {
 		return in_array( 'wp-seopress/seopress.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) || defined( 'SEOPRESS_VERSION' );
+	}
+
+	public function isSquirrlyActive() {
+		return in_array( 'squirrly-seo/squirrly.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ), true ) || defined( 'SQUIRRLY_VERSION' );
 	}
 
 	public function mightyshare_template_options( $value, $setting_prefix ) {

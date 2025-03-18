@@ -3,9 +3,9 @@ Contributors: someguy9
 Donate link: https://www.buymeacoffee.com/someguy
 Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
 Requires at least: 5.4
-Tested up to: 6.6
+Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.3.17
+Stable tag: 1.3.18
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
@@ -29,7 +29,7 @@ MightyShare sends your post's title, featured image, and post meta data to our s
 * **Automatically generate social share images** for posts and pages!
 * Perfect solution for branded social images.
 * Robust customization.
-* SEO plugin compatibility: Yoast SEO, RankMath, All in One SEO, The SEO Framework, Slim SEO, and SEOPress.
+* SEO plugin compatibility: Yoast SEO, RankMath, All in One SEO, The SEO Framework, Slim SEO, Squirrly SEO, and SEOPress.
 * Adds open graph meta tags if you don’t have an SEO plugin.
 * **Multiple [templates](https://mightyshare.io/templates/)** to choose from.
 * New templates added all the time!
@@ -69,6 +69,10 @@ If you are using an SEO plugin be sure to have a default image set for the type 
 == Screenshots ==
 
 == Changelog ==
+
+= 1.3.18 =
+* Tested up to WordPress 6.7.
+* Added support for Squirrly SEO.
 
 = 1.3.17 =
 * Tested up to WordPress 6.6.
