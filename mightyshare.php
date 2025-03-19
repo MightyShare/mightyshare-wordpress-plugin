@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.3.18
+ * Version: 1.3.19
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.3.18' );
+define( 'MIGHTYSHARE_VERSION', '1.3.19' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 
@@ -807,7 +807,7 @@ class Mightyshare_Frontend {
 			add_filter( 'seopress_social_twitter_card_thumb', array( $this, 'mightyshare_overwrite_seopress_twitter_url' ) );
 		} elseif ( $mightyshare_globals->isSquirrlyActive() ) {
 			// Using Squirrly SEO.
-			add_filter('sq_post', array($this, 'mightyshare_overwrite_squirrly_post') );
+			add_filter('sq_post', array($this, 'mightyshare_overwrite_squirrly_post'), 100 );
 		} else {
 			// No plugin manually add og:image meta.
 			$options = get_option( 'mightyshare' );
@@ -929,7 +929,7 @@ class Mightyshare_Frontend {
 		$mightyshare_frontend = new Mightyshare_Frontend();
 		$template_parts = $mightyshare_frontend->get_mightyshare_post_details();
 		
-		if ($template_parts['is_enabled']) {
+		if ($template_parts['is_enabled'] && $post !== null && isset($post->sq)) {
 			$post->sq->og_media = $this->mightyshare_generate_og_image();
 			$post->sq->og_media_width = '1200';
 			$post->sq->og_media_height = '630';
