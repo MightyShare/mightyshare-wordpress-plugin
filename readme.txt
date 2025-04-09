@@ -3,9 +3,9 @@ Contributors: someguy9
 Donate link: https://www.buymeacoffee.com/someguy
 Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
 Requires at least: 5.4
-Tested up to: 6.7
+Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.3.19
+Stable tag: 1.3.20
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
@@ -69,6 +69,10 @@ If you are using an SEO plugin be sure to have a default image set for the type 
 == Screenshots ==
 
 == Changelog ==
+
+= 1.3.20 =
+* New template added (standard-5, standard-6, float-3).
+* Tested up to WordPress 6.8.
 
 = 1.3.19 =
 * Bug fix for the Squirrly integration.
