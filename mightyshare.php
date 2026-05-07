@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.3.20
+ * Version: 1.3.21
  * Text Domain: mightyshare
  * Author: MightyShare
  * Author URI: https://mightyshare.io
@@ -1161,6 +1161,9 @@ class Mightyshare_Globals {
 	// Grab templates for MightyShare.
 	public function mightyshare_templates() {
 		$theme_options = array(
+			'mesh-1'          => 'mesh-1',
+			'mesh-2'          => 'mesh-2',
+			'mesh-3'          => 'mesh-3',
 			'standard-1'      => 'standard-1',
 			'standard-2'      => 'standard-2',
 			'standard-3'      => 'standard-3',
