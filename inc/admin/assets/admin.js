@@ -12,7 +12,6 @@ jQuery(function($) {
 				multiple: false
 			}).on('select', function() {
 				var attachment = customUploader.state().get('selection').first().toJSON();
-				console.log(attachment);
 				$(button).removeClass('button').html('<img class="simple-pre-img" src="' + attachment.url + '" style="max-width:300px;display:block;" />').next().next().val(attachment.id).next().show();
 			}).on('close', function() {
 				//alert('closed');

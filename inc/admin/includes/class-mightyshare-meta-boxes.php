@@ -71,11 +71,11 @@ if ( ! class_exists( 'Mightyshare_Meta_Boxes' ) ) {
 
 					if ( in_array( $field['type'], array( 'checkbox', 'radio' ), true ) ) {
 						?>
-						<tr><th><?php echo esc_attr( ( ! empty( $field['label'] ) ? $field['label'] : '' ) ); ?></th><td>
+						<tr><th><?php echo esc_html( ! empty( $field['label'] ) ? $field['label'] : '' ); ?></th><td>
 						<?php
 					} else {
 						?>
-						<tr><th><label for="<?php echo esc_attr( $this->prefix . $field['id'] ); ?>"><?php echo esc_attr( ( ! empty( $field['label'] ) ? $field['label'] : '' ) ); ?></label></th><td>
+						<tr><th><label for="<?php echo esc_attr( $this->prefix . $field['id'] ); ?>"><?php echo esc_html( ! empty( $field['label'] ) ? $field['label'] : '' ); ?></label></th><td>
 						<?php
 					}
 
@@ -163,7 +163,8 @@ if ( ! class_exists( 'Mightyshare_Meta_Boxes' ) ) {
 				return;
 			}
 
-			if ( ! isset( $_POST[ $this->metabox['id'] . '_wpnonce' ] ) || ! wp_verify_nonce( $_POST[ $this->metabox['id'] . '_wpnonce' ], $this->metabox['id'] ) ) {
+			$nonce_key = $this->metabox['id'] . '_wpnonce';
+			if ( ! isset( $_POST[ $nonce_key ] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST[ $nonce_key ] ) ), $this->metabox['id'] ) ) {
 				return;
 			}
 
@@ -178,7 +179,12 @@ if ( ! class_exists( 'Mightyshare_Meta_Boxes' ) ) {
 			foreach ( $this->metabox['fields'] as $field ) :
 
 				$name  = $field['id'];
-				$value = ! empty( $_POST[ $name ] ) ? sanitize_mightyshare_field( $_POST[ $name ], $field['type'] ) : '';
+				if ( isset( $_POST[ $name ] ) ) {
+					$raw   = wp_unslash( $_POST[ $name ] );
+					$value = sanitize_mightyshare_field( $raw, $field['type'] );
+				} else {
+					$value = '';
+				}
 
 				update_post_meta( $post_id, $name, $value );
 

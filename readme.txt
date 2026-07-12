@@ -2,10 +2,10 @@
 Contributors: someguy9
 Donate link: https://www.buymeacoffee.com/someguy
 Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
-Requires at least: 5.4
+Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.3.21
+Stable tag: 1.4.0
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
@@ -27,6 +27,7 @@ MightyShare sends your post's title, featured image, and post meta data to our s
 ### FEATURES
 
 * **Automatically generate social share images** for posts and pages!
+* Images are pre-generated when you publish, so crawlers get an instant cached image.
 * Perfect solution for branded social images.
 * Robust customization.
 * SEO plugin compatibility: Yoast SEO, RankMath, All in One SEO, The SEO Framework, Slim SEO, Squirrly SEO, and SEOPress.
@@ -60,7 +61,7 @@ The image generation process is performed on our servers. This is done by the pl
 
 =When is an image rendered?=
 
-The MightyShare plugin places a signed MightShare image URL onto your meta tags. Images aren't rendered until that URL is visited (either by a user or crawler). Typically you'll see a 5 second delay in a social preview image loading when it's first shared.
+The MightyShare plugin places a signed MightyShare image URL onto your meta tags. Images are rendered on our servers the first time that URL is requested. Since version 1.4.0 the plugin pings that URL in the background whenever you publish or update a post, so the image is typically already rendered and cached before a social network crawler ever fetches your page.
 
 =Why aren't my images showing up?=
 
@@ -69,6 +70,21 @@ If you are using an SEO plugin be sure to have a default image set for the type 
 == Screenshots ==
 
 == Changelog ==
+
+= 1.4.0 =
+* New: social share images are now pre-generated in the background when a post is published or updated. Previously the first crawler to request the image triggered the render, and a slow first render could make X/Twitter cache a blank card. The warm-up is queued via WP-Cron the moment you save — publishing never waits on it — and re-saving unchanged content resolves to the same signed URL, served from cache without a new render.
+* Bug fix: `Mightyshare_Public_Functions::get_mightyshare_url( $post_id )` now honors the `$post_id` argument outside the frontend loop (it previously always used the queried object), and returns an empty string instead of PHP warnings when no API key is configured.
+* Bug fix: feed renders no longer embed the page URL in the template values, so a post's feed and page now share a single cached render.
+* Performance: meta box definitions (including the Google Fonts list) are no longer built on every frontend request.
+* Template picker lists the standard templates first again — mesh templates are no longer the default for new installs.
+* Security & hardening: sanitize admin `$_GET` (page/tab/post) inputs, add `wp_unslash` to metabox saves, escape image URLs (`esc_url`), and replace incorrect `esc_attr` usage with `esc_html` for text output.
+* Bug fix: removed nested function declarations inside the options class constructor that could cause a fatal error if the class was instantiated more than once. Also fixed the `mightshare_metaboxes` typo.
+* Bug fix: corrected `MIGHTYSHARE_VERSION` constant which was out of sync with the plugin header (broke admin asset cache busting).
+* Bug fix: replaced bare `echo` of API key validation errors with `add_settings_error()` so failures render in the standard settings UI.
+* Performance: per-request caching of plugin options and active-plugins list (SEO plugin detection no longer re-reads `wp_options` 7+ times per request).
+* Added `uninstall.php` — plugin settings are removed when the plugin is deleted (per-post meta is preserved for re-installs).
+* Compatibility: bumped "Requires at least" to WordPress 6.0; tested up to WordPress 7.0.
+* i18n: load text domain from `/languages` (Domain Path) on `init`.
 
 = 1.3.21 =
 * New mesh templates added (mesh-1, mesh-2, mesh-3) — modern dark gradient-mesh designs with auto-derived palettes from your primary color.

@@ -10,7 +10,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 add_action( 'admin_enqueue_scripts', function( $hook ) {
 	global $pagenow;
 
-	if ( ! ( ! empty( $pagenow ) && ( 'post.php' === $pagenow || 'post-new.php' === $pagenow ) ) && ! ( ! empty( $_GET['page'] ) && in_array( $_GET['page'], array( 'mightyshare' ), true ) ) ) {
+	$current_page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+	if ( ! ( ! empty( $pagenow ) && ( 'post.php' === $pagenow || 'post-new.php' === $pagenow ) ) && 'mightyshare' !== $current_page ) {
 		return;
 	}
 
@@ -30,7 +31,7 @@ add_action( 'admin_enqueue_scripts', function( $hook ) {
 		'mightyshare_admin_css',
 		plugin_dir_url( __FILE__ ) . 'assets/admin.css',
 		array(),
-		MIGHTYSHARE_VERSION,
+		MIGHTYSHARE_VERSION
 	);
 
 	wp_localize_script( 'mightyshare_admin_js', 'mightyshareObject', array(
@@ -203,7 +204,7 @@ function render_mightyshare_checkbox_field( $param, $value = '', $prefix = '' ) 
 			<?php
 		}
 		if ( ! empty( $param['label'] ) ) {
-			echo esc_attr( $label );
+			echo esc_html( $label );
 			?>
 			</label>
 			<?php
@@ -233,7 +234,7 @@ function render_mightyshare_image_field( $param, $value = '', $prefix = '' ) {
 	}
 	if ( $value && $image_attributes ) {
 		$image_class       = '';
-		$image_button_text = '<img src="' . $image_attributes[0] . '" style="max-width:200px;max-height:200pxheight:auto;display:block;" />';
+		$image_button_text = '<img src="' . esc_url( $image_attributes[0] ) . '" class="mightyshare-image-field-preview" alt="" />';
 		$display           = 'inline-block';
 	}
 
@@ -241,7 +242,7 @@ function render_mightyshare_image_field( $param, $value = '', $prefix = '' ) {
 	<div>
 		<a href="javascript:void(0)" class="mightyshare-upload-img-button<?php echo esc_attr( $image_class ); ?>"><?php echo wp_kses_post( $image_button_text ); ?></a><br />
 		<input type="hidden" name="<?php echo esc_attr( $name ); ?>" id="<?php echo esc_attr( $prefix . $param['id'] ); ?>" value="<?php echo esc_attr( $value ); ?>" />
-		<a href="javascript:void(0)" class="mightyshare-remove-img-button" style="display:inline-block;display:<?php echo esc_attr( $display ); ?>"><?php echo esc_attr( __( 'Remove image', 'mightyshare' ) ); ?></a>
+		<a href="javascript:void(0)" class="mightyshare-remove-img-button" style="display:<?php echo esc_attr( $display ); ?>"><?php esc_html_e( 'Remove image', 'mightyshare' ); ?></a>
 	</div>
 	<?php
 	if ( isset( $param['description'] ) ) {
