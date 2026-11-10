@@ -119,6 +119,10 @@ if ( ! class_exists( 'Mightyshare_Meta_Boxes' ) ) {
 							render_mightyshare_image_field( $field, $value, $this->prefix );
 							break;
 
+						case 'preview':
+							render_mightyshare_preview_field( $post );
+							break;
+
 				endswitch;
 					?>
 					</td></tr>
@@ -178,6 +182,10 @@ if ( ! class_exists( 'Mightyshare_Meta_Boxes' ) ) {
 
 			foreach ( $this->metabox['fields'] as $field ) :
 
+				if ( 'preview' === $field['type'] ) {
+					continue;
+				}
+
 				$name  = $field['id'];
 				if ( isset( $_POST[ $name ] ) ) {
 					$raw   = wp_unslash( $_POST[ $name ] );
@@ -186,7 +194,12 @@ if ( ! class_exists( 'Mightyshare_Meta_Boxes' ) ) {
 					$value = '';
 				}
 
-				update_post_meta( $post_id, $name, $value );
+				// Empty means "use the default": store nothing rather than an empty row.
+				if ( '' === $value ) {
+					delete_post_meta( $post_id, $name );
+				} else {
+					update_post_meta( $post_id, $name, $value );
+				}
 
 			endforeach;
 		}

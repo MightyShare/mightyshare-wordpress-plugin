@@ -3,24 +3,27 @@
  * Plugin Name: MightyShare
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.4.0
+ * Version: 1.5.0
+ * Requires at least: 6.0
+ * Requires PHP: 7.4
  * Text Domain: mightyshare
- * Domain Path: /languages
  * Author: MightyShare
  * Author URI: https://mightyshare.io
+ * License: GPLv3
+ * License URI: https://www.gnu.org/licenses/gpl-3.0.html
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.4.0' );
+define( 'MIGHTYSHARE_VERSION', '1.5.0' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
+define( 'MIGHTYSHARE_TEMPLATES_API', 'https://mightyshare.io/api/templates' );
 
+// Translations load automatically from translate.wordpress.org (WP 4.6+).
 add_action( 'init', function() {
-	load_plugin_textdomain( 'mightyshare', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
-
 	// Meta boxes (and their nonce-gated save handlers) only do work on admin
 	// requests — skip building the definitions on the frontend.
 	if ( ! is_admin() ) {
@@ -52,6 +55,96 @@ function mightyshare_get_options() {
 
 	return $options;
 }
+
+/**
+ * Recursively sanitize submitted settings. Every stored value is a plain
+ * string (keys, template slugs, hex colors, attachment IDs, font names).
+ */
+function mightyshare_sanitize_option_values( $value ) {
+	if ( is_array( $value ) ) {
+		return array_map( 'mightyshare_sanitize_option_values', $value );
+	}
+
+	return is_scalar( $value ) ? sanitize_text_field( (string) $value ) : '';
+}
+
+/**
+ * Look up the plan for an API key. Memoized per request: the settings
+ * sanitize callback can run twice on one save (add_option + update_option).
+ *
+ * @return array|WP_Error Plan fields to merge into the options.
+ */
+function mightyshare_validate_api_key( $api_key ) {
+	static $results = array();
+
+	if ( isset( $results[ $api_key ] ) ) {
+		return $results[ $api_key ];
+	}
+
+	$response = wp_remote_post(
+		'https://api.mightyshare.io/validate-key/',
+		array(
+			'timeout' => 5,
+			'body'    => wp_json_encode( array( 'apikey' => $api_key ) ),
+			'headers' => array( 'Content-Type' => 'application/json' ),
+		)
+	);
+
+	if ( is_wp_error( $response ) ) {
+		$results[ $api_key ] = $response;
+		return $response;
+	}
+
+	$body = json_decode( wp_remote_retrieve_body( $response ) );
+	if ( ! is_object( $body ) ) {
+		$results[ $api_key ] = new WP_Error( 'mightyshare_invalid_response', __( 'Unexpected response from MightyShare.', 'mightyshare' ) );
+		return $results[ $api_key ];
+	}
+
+	$plan = array();
+	if ( isset( $body->plan_type ) ) {
+		$plan['plan_type'] = sanitize_text_field( $body->plan_type );
+	}
+	if ( isset( $body->message ) ) {
+		$plan['plan_message'] = sanitize_text_field( $body->message );
+	}
+	if ( isset( $body->type ) ) {
+		$plan['plan_response_type'] = sanitize_key( $body->type );
+	}
+
+	set_transient( 'mightyshare_plan_checked', 1, 12 * HOUR_IN_SECONDS );
+	$results[ $api_key ] = $plan;
+
+	return $plan;
+}
+
+/**
+ * Re-check the plan when the settings page is opened (at most every 12 hours)
+ * so an upgrade unlocks paid features without re-saving the key, and a key
+ * saved during a timeout eventually gets its plan.
+ */
+function mightyshare_refresh_plan() {
+	if ( ! isset( $_GET['page'] ) || 'mightyshare' !== sanitize_key( wp_unslash( $_GET['page'] ) ) || ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+
+	$options = get_option( 'mightyshare' );
+	if ( empty( $options['mightyshare_api_key'] ) || get_transient( 'mightyshare_plan_checked' ) ) {
+		return;
+	}
+
+	$plan = mightyshare_validate_api_key( trim( $options['mightyshare_api_key'] ) );
+	if ( is_wp_error( $plan ) ) {
+		// Don't retry on every page view while the API is unreachable.
+		set_transient( 'mightyshare_plan_checked', 1, HOUR_IN_SECONDS );
+		return;
+	}
+
+	if ( array_diff_assoc( $plan, $options ) ) {
+		update_option( 'mightyshare', array_merge( $options, $plan ) );
+	}
+}
+add_action( 'admin_init', 'mightyshare_refresh_plan', 20 );
 
 /**
  * Add a "Settings" link on the plugins screen row.
@@ -107,6 +200,11 @@ function mightyshare_metaboxes( $metaboxes ) {
 		'name'      => 'MightyShare Options',
 		'post_type' => $post_types,
 		'fields'    => array(
+			array(
+				'id'    => 'mightyshare_preview',
+				'label' => __( 'Preview', 'mightyshare' ),
+				'type'  => 'preview',
+			),
 			array(
 				'id'          => 'mightyshare_enabled',
 				'label'       => __( 'Enable MightyShare?', 'mightyshare' ),
@@ -206,67 +304,60 @@ class Mightyshare_Plugin_Options {
 	}
 
 	function mightyshare_merge_options( $data ) {
-		if ( isset( $data['mightyshare_api_key'] ) && ! empty( $data['mightyshare_api_key'] ) ) {
-			$body = [
-					'apikey' => trim($data['mightyshare_api_key']),
-			];
-			$body = wp_json_encode( $body );
+		if ( ! is_array( $data ) ) {
+			return $data;
+		}
 
-			$response = wp_remote_post( 'https://api.mightyshare.io/validate-key/', array(
-					'method'      => 'POST',
-					'timeout'     => 2,
-					'blocking'    => true,
-					'httpversion' => '1.0',
-					'body'        => $body,
-					'headers'     => array(
-						'Content-Type' => 'application/json',
+		$data = mightyshare_sanitize_option_values( $data );
+
+		if ( ! empty( $data['mightyshare_api_key'] ) ) {
+			$data['mightyshare_api_key'] = trim( $data['mightyshare_api_key'] );
+			$plan                        = mightyshare_validate_api_key( $data['mightyshare_api_key'] );
+
+			if ( is_wp_error( $plan ) ) {
+				add_settings_error(
+					'mightyshare',
+					'mightyshare_api_key_error',
+					sprintf(
+						/* translators: %s: error message */
+						esc_html__( 'Unable to fetch API Key details: %s', 'mightyshare' ),
+						esc_html( $plan->get_error_message() )
 					),
-				)
-			);
-
-			if ( is_wp_error( $response ) ) {
-					add_settings_error(
-						'mightyshare',
-						'mightyshare_api_key_error',
-						sprintf(
-							/* translators: %s: error message */
-							esc_html__( 'Unable to fetch API Key details: %s', 'mightyshare' ),
-							esc_html( $response->get_error_message() )
-						),
-						'error'
-					);
+					'error'
+				);
 			} else {
-					$mightyshare_plan_response = json_decode( $response['body'] );
-					if ( isset( $mightyshare_plan_response->plan_type ) ){
-						$data['plan_type'] = $mightyshare_plan_response->plan_type;
-					}
-					if ( isset( $mightyshare_plan_response->message ) ){
-						$data['plan_message'] = $mightyshare_plan_response->message;
-					}
-					if ( isset( $mightyshare_plan_response->type ) ){
-						$data['plan_response_type'] = $mightyshare_plan_response->type;
-					}
+				$data = array_merge( $data, $plan );
 			}
 		}
 
 		$existing = get_option( 'mightyshare' );
 
-		if ( ! is_array( $existing ) || ! is_array( $data ) ) {
+		if ( ! is_array( $existing ) ) {
 			return $data;
 		}
 
-		if ( isset( $data['current_settings_page_name'] ) && 'options' === $data['current_settings_page_name'] ) {
+		$page = isset( $data['current_settings_page_name'] ) ? $data['current_settings_page_name'] : '';
+
+		if ( 'options' === $page ) {
 			$checkboxes = array(
 				'enable_mightyshare',
 				'enable_description',
 				'output_opengraph',
+				'enable_archives',
 			);
 
 			foreach ( $checkboxes as $checkbox ) {
-				if ( empty ( $data[$checkbox] ) ) {
-					unset( $existing[$checkbox] );
+				if ( empty( $data[ $checkbox ] ) ) {
+					unset( $existing[ $checkbox ] );
 				}
 			}
+		}
+
+		// Both settings tabs render every "enabled on" checkbox, and unchecked
+		// boxes aren't submitted, so a missing key means "none checked" rather
+		// than "keep the old value".
+		if ( in_array( $page, array( 'options', 'post-types' ), true ) && ! isset( $data['enabled_on'] ) ) {
+			$data['enabled_on'] = array();
 		}
 
 		return array_merge( $existing, $data );
@@ -304,6 +395,13 @@ class Mightyshare_Plugin_Options {
 			'general',
 			array( 'label_for' => 'mightyshare_api_key_field' )
 		);
+		add_settings_field(
+			'prewarm',
+			__( 'Pre-generate on Publish', 'mightyshare' ),
+			array( $this, 'render_prewarm_field' ),
+			'mightyshare',
+			'general'
+		);
 
 		add_settings_section(
 			'display',
@@ -316,6 +414,14 @@ class Mightyshare_Plugin_Options {
 			'enabled_post_types',
 			__( 'Enabled by Default On', 'mightyshare' ),
 			array( $this, 'render_post_types_field' ),
+			'mightyshare',
+			'display'
+		);
+
+		add_settings_field(
+			'enable_archives',
+			__( 'Homepage & Archives', 'mightyshare' ),
+			array( $this, 'render_enable_archives_field' ),
 			'mightyshare',
 			'display'
 		);
@@ -445,6 +551,7 @@ class Mightyshare_Plugin_Options {
 			<input type="hidden" id="mightyshare[current_settings_page_name]" name="mightyshare[current_settings_page_name]" value="options">
 			</form>
 			<?php
+			$this->render_bulk_prewarm_box();
 			} elseif ( 'post-types' === $tab ) {
 			?>
 				<form action="options.php" method="post">
@@ -542,6 +649,48 @@ class Mightyshare_Plugin_Options {
 		<?php
 	}
 
+	public function render_bulk_prewarm_box() {
+		$options = get_option( 'mightyshare' );
+		if ( empty( $options['mightyshare_api_key'] ) ) {
+			return;
+		}
+
+		$state = get_option( 'mightyshare_bulk_prewarm' );
+		?>
+		<div class="postbox">
+			<div class="mightyshare-settings-section inside">
+				<h2><?php esc_html_e( 'Pre-generate Existing Content', 'mightyshare' ); ?></h2>
+				<p><?php esc_html_e( 'Render images for all published content on enabled post types, a few at a time in the background. Useful after changing templates or installing the plugin on an existing site. Images that are already cached are not rendered again; each new image counts as one render.', 'mightyshare' ); ?></p>
+				<?php if ( is_array( $state ) && ! empty( $state['running'] ) ) { ?>
+					<p><strong>
+					<?php
+					/* translators: 1: processed count, 2: total count */
+					echo esc_html( sprintf( __( 'Running: %1$d of %2$d processed.', 'mightyshare' ), $state['done'], $state['total'] ) );
+					?>
+					</strong></p>
+				<?php } elseif ( is_array( $state ) && ! empty( $state['finished'] ) ) { ?>
+					<p>
+					<?php
+					/* translators: 1: processed count, 2: date */
+					echo esc_html( sprintf( __( 'Last run finished: %1$d items on %2$s.', 'mightyshare' ), $state['done'], wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $state['finished'] ) ) );
+					?>
+					</p>
+				<?php } ?>
+				<form action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" method="post">
+					<input type="hidden" name="action" value="mightyshare_bulk_prewarm">
+					<?php wp_nonce_field( 'mightyshare_bulk_prewarm' ); ?>
+					<?php if ( is_array( $state ) && ! empty( $state['running'] ) ) { ?>
+						<button type="submit" name="mightyshare_bulk" value="cancel" class="button"><?php esc_html_e( 'Cancel', 'mightyshare' ); ?></button>
+					<?php } else { ?>
+						<button type="submit" name="mightyshare_bulk" value="start" class="button button-secondary"><?php esc_html_e( 'Pre-generate All Images', 'mightyshare' ); ?></button>
+					<?php } ?>
+					<p class="mightyshare-description description"><?php echo wp_kses_post( __( 'Prefer the command line? Run <code>wp mightyshare prewarm</code>.', 'mightyshare' ) ); ?></p>
+				</form>
+			</div>
+		</div>
+		<?php
+	}
+
 	// Loop through array and configure settings page.
 	public function mightyshare_register_settings_fields( $fields, $key ) {
 		uasort( $fields, function( $a, $b ) {
@@ -604,6 +753,42 @@ class Mightyshare_Plugin_Options {
 				</span>
 			<?php }; ?>
 			<?php echo wp_kses_post( __( 'Your MightyShare.io API Key. <br /><small>Don\'t have an API Key? <a href="https://mightyshare.io/register" rel="nofollow noopener" target="_blank">Get a free MightyShare API Key</a></small>', 'mightyshare' ) ); ?></p>
+		<?php
+	}
+
+	public function render_prewarm_field() {
+		$options = get_option( 'mightyshare' );
+		$value   = ( empty( $options['prewarm'] ) || 'no' !== $options['prewarm'] ) ? 'yes' : 'no';
+		?>
+		<input type="hidden" name="mightyshare[prewarm]" value="no">
+		<?php
+		render_mightyshare_checkbox_field(
+			array(
+				'id'        => 'mightyshare[prewarm]',
+				'set_value' => 'yes',
+				'classes'   => 'mightyshare-toggler-wrapper',
+				'label'     => true,
+			),
+			$value
+		);
+		?>
+		<p class="mightyshare-description description"><?php echo wp_kses_post( __( 'Render each image in the background when you publish or update, so social crawlers get it instantly. <br /><small>Each new or changed image counts as one render.</small>', 'mightyshare' ) ); ?></p>
+		<?php
+	}
+
+	public function render_enable_archives_field() {
+		$options = get_option( 'mightyshare' );
+		render_mightyshare_checkbox_field(
+			array(
+				'id'        => 'mightyshare[enable_archives]',
+				'set_value' => 'yes',
+				'classes'   => 'mightyshare-toggler-wrapper',
+				'label'     => true,
+			),
+			! empty( $options['enable_archives'] ) ? 'yes' : 'no'
+		);
+		?>
+		<p class="mightyshare-description description"><?php echo wp_kses_post( __( 'Also generate images for the homepage (when it shows latest posts), the blog page, and post type archives such as the WooCommerce shop. <br /><small>Uses the settings of the related post type, which must be enabled above.</small>', 'mightyshare' ) ); ?></p>
 		<?php
 	}
 
@@ -806,23 +991,43 @@ class Mightyshare_Generate_Engine {
 }
 
 class Mightyshare_Public_Functions {
-    public static function get_mightyshare_url($post_id = 0, $options = array()) {
-        $mightyshare_frontend = new Mightyshare_Frontend();
-        $template_parts = $mightyshare_frontend->get_mightyshare_post_details($post_id);
+	public static function get_mightyshare_url( $post_id = 0, $options = array() ) {
+		$template_parts = Mightyshare_Frontend::instance()->get_mightyshare_post_details( $post_id );
 
 		if ( ! empty( $options ) ) {
-			$template_parts = array_merge($template_parts, $options);
+			$template_parts = array_merge( $template_parts, $options );
 		}
 
-        return Mightyshare_Frontend::mightyshare_generate_og_image($template_parts);
-    }
+		return Mightyshare_Frontend::mightyshare_generate_og_image( $template_parts );
+	}
+}
+
+/**
+ * Plain text for a template field: no tags, no HTML entities, bounded length.
+ */
+function mightyshare_clean_text( $value ) {
+	// Only real tags ("<em>", "</a>") — titles like "I <3 you" or "<$50" keep their "<".
+	$value = preg_replace( '#<(script|style)[^>]*>.*?</\1>#is', '', (string) $value );
+	$value = html_entity_decode( preg_replace( '#</?[a-zA-Z][^<>]*>#', '', $value ), ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+
+	// ponytail: a hard cap keeps very long excerpts (and CJK text, which
+	// percent-encodes to ~18 bytes per character) under URL length limits.
+	return mb_strlen( $value ) > 300 ? rtrim( mb_substr( $value, 0, 299 ) ) . '…' : $value;
 }
 
 class Mightyshare_Frontend {
 
-	public function __construct() {
-		// Replace OG image if using an SEO plugin.
-		add_action( 'template_redirect', array( $this, 'mightyshare_opengraph_meta_tags' ), 1 );
+	// Post meta keys the metabox stores per-post template options under.
+	const POST_TEMPLATE_OPTION_KEYS = array( 'primary_font', 'primary_color', 'logo', 'background' );
+
+	protected static $instance = null;
+
+	public static function instance() {
+		if ( null === self::$instance ) {
+			self::$instance = new self();
+		}
+
+		return self::$instance;
 	}
 
 	// Replace OG image if using an SEO plugin.
@@ -852,12 +1057,14 @@ class Mightyshare_Frontend {
 			add_filter( 'seopress_social_twitter_card_thumb', array( $this, 'mightyshare_overwrite_seopress_twitter_url' ) );
 		} elseif ( $mightyshare_globals->isSquirrlyActive() ) {
 			// Using Squirrly SEO.
-			add_filter('sq_post', array($this, 'mightyshare_overwrite_squirrly_post'), 100 );
+			add_filter( 'sq_post', array( $this, 'mightyshare_overwrite_squirrly_post' ), 100 );
 		} else {
 			// No plugin manually add og:image meta.
-			$options = get_option( 'mightyshare' );
+			$options = mightyshare_get_options();
 
 			if ( ! empty( $options['output_opengraph'] ) && 'yes' === $options['output_opengraph'] ) {
+				// Jetpack prints its own Open Graph tags when no SEO plugin is active.
+				add_filter( 'jetpack_open_graph_tags', array( $this, 'mightyshare_overwrite_jetpack_tags' ) );
 				add_action( 'wp_head', array( $this, 'mightyshare_render_opengraph' ), 1 );
 			}
 		}
@@ -865,20 +1072,21 @@ class Mightyshare_Frontend {
 
 	// Using Yoast SEO.
 	public function mightyshare_overwrite_yoast_url( $presentation ) {
-		$mightyshare_frontend = new Mightyshare_Frontend();
-		$template_parts       = $mightyshare_frontend->get_mightyshare_post_details();
+		$template_parts = $this->get_mightyshare_post_details();
 
 		if ( $template_parts['is_enabled'] ) {
+			$image_url = $this->mightyshare_generate_og_image();
+
 			$presentation->open_graph_images = array(
 				array(
-					'url'    => $this->mightyshare_generate_og_image(),
+					'url'    => $image_url,
 					'width'  => '1200',
 					'height' => '630',
 					'type'   => 'image/jpeg',
 				),
 			);
 
-			$presentation->twitter_image = $this->mightyshare_generate_og_image();
+			$presentation->twitter_image = $image_url;
 		}
 
 		return $presentation;
@@ -886,8 +1094,7 @@ class Mightyshare_Frontend {
 
 	// Using Rank Math.
 	public function mightyshare_overwrite_rankmath_opengraph_url( $attachment_url ) {
-		$mightyshare_frontend = new Mightyshare_Frontend();
-		$template_parts       = $mightyshare_frontend->get_mightyshare_post_details();
+		$template_parts = $this->get_mightyshare_post_details();
 
 		if ( $template_parts['is_enabled'] ) {
 			return $this->mightyshare_generate_og_image();
@@ -898,20 +1105,21 @@ class Mightyshare_Frontend {
 
 	// Using All in One SEO.
 	public function mightyshare_overwrite_all_in_one_seo_facebook_opengraph_url( $facebookMeta ) {
-		$mightyshare_frontend = new Mightyshare_Frontend();
-		$template_parts       = $mightyshare_frontend->get_mightyshare_post_details();
+		$template_parts = $this->get_mightyshare_post_details();
 
 		if ( $template_parts['is_enabled'] ) {
-			$facebookMeta['og:image']            = $this->mightyshare_generate_og_image();
-			$facebookMeta['og:image:secure_url'] = $this->mightyshare_generate_og_image();
+			$image_url                           = $this->mightyshare_generate_og_image();
+			$facebookMeta['og:image']            = $image_url;
+			$facebookMeta['og:image:secure_url'] = $image_url;
+			$facebookMeta['og:image:width']      = '1200';
+			$facebookMeta['og:image:height']     = '630';
 		}
 
 		return $facebookMeta;
 	}
 
 	public function mightyshare_overwrite_all_in_one_seo_twitter_opengraph_url( $twitterMeta ) {
-		$mightyshare_frontend = new Mightyshare_Frontend();
-		$template_parts       = $mightyshare_frontend->get_mightyshare_post_details();
+		$template_parts = $this->get_mightyshare_post_details();
 
 		if ( $template_parts['is_enabled'] ) {
 			$twitterMeta['twitter:image'] = $this->mightyshare_generate_og_image();
@@ -922,8 +1130,7 @@ class Mightyshare_Frontend {
 
 	// Using The SEO Framework.
 	public function mightyshare_overwrite_the_seo_framework_opengraph_url( $image ) {
-		$mightyshare_frontend = new Mightyshare_Frontend();
-		$template_parts       = $mightyshare_frontend->get_mightyshare_post_details();
+		$template_parts = $this->get_mightyshare_post_details();
 
 		if ( $template_parts['is_enabled'] ) {
 			$image[0]['height'] = '';
@@ -937,8 +1144,7 @@ class Mightyshare_Frontend {
 
 	// Using Slim SEO.
 	public function mightyshare_overwrite_slim_seo_opengraph_url( $value ) {
-		$mightyshare_frontend = new Mightyshare_Frontend();
-		$template_parts       = $mightyshare_frontend->get_mightyshare_post_details();
+		$template_parts = $this->get_mightyshare_post_details();
 
 		if ( $template_parts['is_enabled'] ) {
 			return $this->mightyshare_generate_og_image();
@@ -949,8 +1155,7 @@ class Mightyshare_Frontend {
 
 	// Using SEOPress.
 	public function mightyshare_overwrite_seopress_opengraph_url( $value ) {
-		$mightyshare_frontend = new Mightyshare_Frontend();
-		$template_parts       = $mightyshare_frontend->get_mightyshare_post_details();
+		$template_parts = $this->get_mightyshare_post_details();
 
 		if ( $template_parts['is_enabled'] ) {
 			return '<meta property="og:image" content="' . esc_url( $this->mightyshare_generate_og_image() ) . '" />';
@@ -959,8 +1164,7 @@ class Mightyshare_Frontend {
 		return $value;
 	}
 	public function mightyshare_overwrite_seopress_twitter_url( $value ) {
-		$mightyshare_frontend = new Mightyshare_Frontend();
-		$template_parts       = $mightyshare_frontend->get_mightyshare_post_details();
+		$template_parts = $this->get_mightyshare_post_details();
 
 		if ( $template_parts['is_enabled'] ) {
 			return '<meta property="twitter:image:src" content="' . esc_url( $this->mightyshare_generate_og_image() ) . '" />';
@@ -970,28 +1174,54 @@ class Mightyshare_Frontend {
 	}
 
 	// Using Squirrly SEO.
-	public function mightyshare_overwrite_squirrly_post($post) {
-		$mightyshare_frontend = new Mightyshare_Frontend();
-		$template_parts = $mightyshare_frontend->get_mightyshare_post_details();
-		
-		if ($template_parts['is_enabled'] && $post !== null && isset($post->sq)) {
-			$post->sq->og_media = $this->mightyshare_generate_og_image();
-			$post->sq->og_media_width = '1200';
+	public function mightyshare_overwrite_squirrly_post( $post ) {
+		$template_parts = $this->get_mightyshare_post_details();
+
+		if ( $template_parts['is_enabled'] && null !== $post && isset( $post->sq ) ) {
+			$post->sq->og_media        = $this->mightyshare_generate_og_image();
+			$post->sq->og_media_width  = '1200';
 			$post->sq->og_media_height = '630';
-			$post->sq->og_media_type = 'image/jpeg';
+			$post->sq->og_media_type   = 'image/jpeg';
 		}
-		
+
 		return $post;
+	}
+
+	// Using Jetpack's Open Graph tags.
+	public function mightyshare_overwrite_jetpack_tags( $tags ) {
+		$template_parts = $this->get_mightyshare_post_details();
+
+		if ( $template_parts['is_enabled'] ) {
+			$image_url               = $this->mightyshare_generate_og_image();
+			$tags['og:image']        = $image_url;
+			$tags['og:image:width']  = 1200;
+			$tags['og:image:height'] = 630;
+			$tags['twitter:image']   = $image_url;
+			$tags['twitter:card']    = 'summary_large_image';
+			unset( $tags['og:image:alt'], $tags['twitter:image:alt'] );
+		}
+
+		return $tags;
 	}
 
 	// No SEO plugin so render tags.
 	public function mightyshare_render_opengraph( $attachment_url ) {
-		$mightyshare_frontend = new Mightyshare_Frontend();
-		$template_parts       = $mightyshare_frontend->get_mightyshare_post_details();
+		// Jetpack is already printing (filtered) tags; don't duplicate them.
+		if ( has_action( 'wp_head', 'jetpack_og_tags' ) ) {
+			return $attachment_url;
+		}
+
+		$template_parts = $this->get_mightyshare_post_details();
 
 		if ( $template_parts['is_enabled'] ) {
+			$image_url = $this->mightyshare_generate_og_image();
 			?>
-			<meta property="og:image" content="<?php echo esc_url( $this->mightyshare_generate_og_image() ); ?>" />
+			<meta property="og:image" content="<?php echo esc_url( $image_url ); ?>" />
+			<meta property="og:image:width" content="1200" />
+			<meta property="og:image:height" content="630" />
+			<meta property="og:image:type" content="image/jpeg" />
+			<meta name="twitter:card" content="summary_large_image" />
+			<meta name="twitter:image" content="<?php echo esc_url( $image_url ); ?>" />
 			<?php
 		}
 
@@ -1003,18 +1233,17 @@ class Mightyshare_Frontend {
 		global $wp;
 
 		if ( ! $template_parts ) {
-			$mightyshare_frontend = new Mightyshare_Frontend();
-			$template_parts = $mightyshare_frontend->get_mightyshare_post_details();
+			$template_parts = self::instance()->get_mightyshare_post_details();
 		}
 
 		// Get API Key.
-		$options = get_option( 'mightyshare' );
+		$options = mightyshare_get_options();
 
 		if ( empty( $options['mightyshare_api_key'] ) ) {
 			return '';
 		}
 
-		$key['api_key'] = trim($options['mightyshare_api_key']);
+		$key['api_key'] = trim( $options['mightyshare_api_key'] );
 
 		// Setup defaults for render.
 		$render_options['cache']  = 'true';
@@ -1026,32 +1255,37 @@ class Mightyshare_Frontend {
 			$render_options['template'] = $template_parts['template'];
 		}
 
-		// Configure the template.
+		// Configure the template. Keep this output stable: any change to it
+		// changes every signed URL and re-renders every existing image.
 		$template_json = array();
 
 		foreach ( $template_parts as $value_key => $value ) {
-			if ( $value_key === 'template' && $value === 'screenshot-self' ) {
+			if ( 'template' === $value_key && 'screenshot-self' === $value ) {
 				break;
 			}
 			$type = 'text';
-			if ( in_array( $value_key, ['is_enabled', 'template', 'ID', 'type', 'object_type', 'overwrite_page_url'] ) ) {
+			if ( in_array( $value_key, array( 'is_enabled', 'template', 'ID', 'type', 'object_type', 'overwrite_page_url', 'render_version' ), true ) ) {
 				continue;
-			} elseif ( $value_key === 'primary_color' ) {
+			} elseif ( 'primary_color' === $value_key ) {
 				$type = 'color';
-			} elseif ( $value_key === 'primary_font' ) {
-				$type = 'google_font';
+			} elseif ( 'primary_font' === $value_key ) {
+				$type      = 'google_font';
 				$value_key = 'google_font';
-				$value = str_replace(' ', '+', $template_parts['primary_font'] );
-			} elseif ( $value_key === 'background' || $value_key === 'logo' ) {
-				$type = 'image_url';
+				$value     = str_replace( ' ', '+', (string) $value );
+			} elseif ( 'background' === $value_key || 'logo' === $value_key ) {
+				$type      = 'image_url';
 				$image_url = is_numeric( $value ) ? wp_get_attachment_image_src( $value, 'full' ) : $value;
-				if( ! empty( $image_url ) && is_array( $image_url ) ){
+				if ( ! empty( $image_url ) && is_array( $image_url ) ) {
 					$image_url = $image_url[0];
 				}
-				$value = rawurlencode( htmlspecialchars_decode( $image_url ) );
-			} elseif ( $value_key === 'title' || $value_key === 'description' ) {
-				$value = rawurlencode( htmlspecialchars_decode( $value ?? '' ) );
-			};
+				$value = rawurlencode( htmlspecialchars_decode( (string) $image_url ) );
+			} elseif ( 'title' === $value_key || 'description' === $value_key ) {
+				$value = rawurlencode( mightyshare_clean_text( $value ) );
+			} elseif ( 'rating' === $value_key ) {
+				$type = 'rating_number';
+			} elseif ( 'reviews' === $value_key ) {
+				$type = 'number';
+			}
 
 			array_push(
 				$template_json,
@@ -1066,6 +1300,11 @@ class Mightyshare_Frontend {
 			$render_options['template_values'] = wp_json_encode( $template_json );
 		}
 
+		// Bumped by "Regenerate image" to force a fresh render of this post.
+		if ( ! empty( $template_parts['render_version'] ) ) {
+			$render_options['v'] = $template_parts['render_version'];
+		}
+
 		$mightyshare = new Mightyshare_Generate_Engine();
 
 		return $mightyshare->get_image_url( ! empty( $template_parts['overwrite_page_url'] ) ? $template_parts['overwrite_page_url'] : home_url( $wp->request ), $render_options, $key );
@@ -1075,7 +1314,24 @@ class Mightyshare_Frontend {
 	// details outside the frontend loop (e.g. on save, WP-Cron, or the
 	// get_mightyshare_url() developer function).
 	public function get_mightyshare_post_details( $post_id = 0 ) {
-		$options = get_option( 'mightyshare' );
+		// SEO plugins ask several times per page; the queried object doesn't change.
+		static $queried_cache = null;
+
+		if ( ! $post_id && null !== $queried_cache && did_action( 'wp' ) ) {
+			return $queried_cache;
+		}
+
+		$details = $this->build_post_details( $post_id );
+
+		if ( ! $post_id && did_action( 'wp' ) ) {
+			$queried_cache = $details;
+		}
+
+		return $details;
+	}
+
+	protected function build_post_details( $post_id ) {
+		$options = mightyshare_get_options();
 
 		// Don't use if MightyShare is disabled globally.
 		if ( empty( $options['enable_mightyshare'] ) || empty( $options['mightyshare_api_key'] ) ) {
@@ -1083,16 +1339,25 @@ class Mightyshare_Frontend {
 			return $returned_template_parts;
 		}
 
-		global $wp_query;
-		global $post;
+		global $wp_query, $post;
 
-		$forced_post = $post_id ? get_post( $post_id ) : null;
-
-		$template_parts          = get_queried_object() ? get_queried_object() : $post;
+		$forced_post     = $post_id ? get_post( $post_id ) : null;
+		$queried_object  = $forced_post ? $forced_post : get_queried_object();
+		$template_parts  = $queried_object ? $queried_object : $post;
+		$archives_on     = ! empty( $options['enable_archives'] );
+		$is_post_object  = false;
 		$returned_template_parts = array();
 
-		if ( $forced_post ) {
-			$template_parts = $forced_post;
+		// The blog page and WooCommerce shop are real pages: treat them as such.
+		if ( ! $forced_post && $archives_on ) {
+			if ( $wp_query->is_home && ! $wp_query->is_front_page() && $queried_object instanceof WP_Post ) {
+				$forced_post = $queried_object;
+			} elseif ( function_exists( 'is_shop' ) && function_exists( 'wc_get_page_id' ) && is_shop() && wc_get_page_id( 'shop' ) > 0 ) {
+				$forced_post = get_post( wc_get_page_id( 'shop' ) );
+			}
+			if ( $forced_post ) {
+				$template_parts = $forced_post;
+			}
 		}
 
 		// Defaults.
@@ -1108,115 +1373,139 @@ class Mightyshare_Frontend {
 			$returned_template_parts['enable_description'] = true;
 		}
 
-		if ( ( $forced_post || $wp_query->is_singular || $wp_query->is_feed ) && ! empty( $template_parts ) ) {
+		if ( ( $forced_post || $wp_query->is_singular || $wp_query->is_feed ) && $template_parts instanceof WP_Post ) {
+			$is_post_object                         = true;
 			$returned_template_parts['ID']          = $template_parts->ID;
 			$returned_template_parts['title']       = $template_parts->post_title;
-			$returned_template_parts['description'] = $template_parts->post_excerpt;
+			$returned_template_parts['description'] = '' === $template_parts->post_password ? $template_parts->post_excerpt : '';
 			$returned_template_parts['type']        = $template_parts->post_type;
 			$returned_template_parts['object_type'] = 'post_types';
-		}
-
-		if ( ! $forced_post && $wp_query->is_archive && ! empty( $template_parts ) ) {
-			$returned_template_parts['ID']          = isset($template_parts->term_id) ? $template_parts->term_id : '';
-			$returned_template_parts['title']       = isset($template_parts->name) ? $template_parts->name : '';
-			$returned_template_parts['description'] = isset($template_parts->category_description) ? $template_parts->category_description : '';
-			$returned_template_parts['type'] = isset($template_parts->taxonomy) ? $template_parts->taxonomy : '';
+			// Page views keep 1.4.0's home_url( $wp->request ) so existing images keep
+			// their URLs. Pre-warm/feeds use the permalink, untrailingslashed so it
+			// matches; plain permalinks have an empty $wp->request, so they need it too.
+			if ( $forced_post || $wp_query->is_feed || ! get_option( 'permalink_structure' ) ) {
+				$page_url = untrailingslashit( get_permalink( $template_parts ) );
+				// PATHINFO permalinks (/index.php/slug): $wp->request omits index.php.
+				if ( 0 === strpos( (string) get_option( 'permalink_structure' ), '/index.php' ) ) {
+					$page_url = str_replace( home_url( '/index.php' ), home_url(), $page_url );
+				}
+				$returned_template_parts['overwrite_page_url'] = $page_url;
+			}
+		} elseif ( ! $forced_post && ( $wp_query->is_category || $wp_query->is_tag || $wp_query->is_tax ) && $template_parts instanceof WP_Term ) {
+			$returned_template_parts['ID']          = $template_parts->term_id;
+			$returned_template_parts['title']       = $template_parts->name;
+			$returned_template_parts['description'] = $template_parts->description;
+			$returned_template_parts['type']        = $template_parts->taxonomy;
 			$returned_template_parts['object_type'] = 'taxonomies';
-		}
-
-		if ( ! $forced_post && $wp_query->is_author && ! empty( $template_parts ) ) {
+		} elseif ( ! $forced_post && $wp_query->is_author && $template_parts instanceof WP_User ) {
 			$returned_template_parts['ID']          = $template_parts->ID;
 			$returned_template_parts['title']       = $template_parts->display_name;
-			$returned_template_parts['description'] = get_the_author_meta('description', $template_parts->ID);
+			$returned_template_parts['description'] = get_the_author_meta( 'description', $template_parts->ID );
 			$returned_template_parts['type']        = 'user';
 			$returned_template_parts['object_type'] = 'users';
-		}
-
-		if ( $forced_post ) {
-			// untrailingslashit so this matches home_url( $wp->request ) used on
-			// frontend renders — same query string, same signature, same cached image.
-			$returned_template_parts['overwrite_page_url'] = untrailingslashit( get_permalink( $forced_post ) );
-		} elseif ( $wp_query->is_feed ) {
-			$returned_template_parts['overwrite_page_url'] = get_the_permalink($template_parts->ID);
+		} elseif ( ! $forced_post && $archives_on && $wp_query->is_home && $wp_query->is_front_page() ) {
+			// Front page showing the latest posts.
+			$returned_template_parts['title']       = get_bloginfo( 'name' );
+			$returned_template_parts['description'] = get_bloginfo( 'description' );
+			$returned_template_parts['type']        = 'post';
+			$returned_template_parts['object_type'] = 'post_types';
+			$returned_template_parts['overwrite_page_url'] = home_url();
+		} elseif ( ! $forced_post && $archives_on && $wp_query->is_post_type_archive && $template_parts instanceof WP_Post_Type ) {
+			$returned_template_parts['title']       = post_type_archive_title( '', false );
+			$returned_template_parts['description'] = $template_parts->description;
+			$returned_template_parts['type']        = $template_parts->name;
+			$returned_template_parts['object_type'] = 'post_types';
+			$returned_template_parts['overwrite_page_url'] = untrailingslashit( (string) get_post_type_archive_link( $template_parts->name ) );
 		}
 
 		// Get post type overwrites.
-		if ( ! empty ( $returned_template_parts['object_type'] ) && ! empty ( $returned_template_parts['type'] ) && ! empty ( $options['post_type_overwrites'][ $returned_template_parts['object_type'] ][ $returned_template_parts['type'] ] ) ) {
-			$overwrites = $options['post_type_overwrites'][ $returned_template_parts['object_type'] ][ $returned_template_parts['type'] ];
+		if ( ! empty( $returned_template_parts['object_type'] ) && ! empty( $returned_template_parts['type'] ) && ! empty( $options['post_type_overwrites'][ $returned_template_parts['object_type'] ][ $returned_template_parts['type'] ] ) ) {
+			$overwrites = array_filter( $options['post_type_overwrites'][ $returned_template_parts['object_type'] ][ $returned_template_parts['type'] ] );
 			if ( ! empty( $overwrites ) ) {
-				$overwrites = array_filter($overwrites);
-				$returned_template_parts = array_replace($returned_template_parts, $overwrites);
+				$returned_template_parts = array_replace( $returned_template_parts, $overwrites );
 			}
 		}
 
-		if ( ! empty( $returned_template_parts['ID'] ) && $returned_template_parts['ID'] ) {
+		if ( ! empty( $returned_template_parts['object_type'] ) ) {
+			$returned_template_parts['is_enabled'] = ! empty( $options['enabled_on'][ $returned_template_parts['object_type'] ] )
+				&& in_array( $returned_template_parts['type'], $options['enabled_on'][ $returned_template_parts['object_type'] ], true );
+		}
 
-			// Template variables.
-			if ( ! empty( $options['enabled_on'] ) && ! empty( $options['enabled_on'][ $returned_template_parts['object_type'] ] ) && ! empty( $returned_template_parts['type'] ) && in_array( $returned_template_parts['type'], $options['enabled_on'][ $returned_template_parts['object_type'] ], true ) ) {
-				$returned_template_parts['is_enabled'] = true;
-			} else {
-				$returned_template_parts['is_enabled'] = false;
+		// Featured image and per-post overwrites only exist for posts — term and
+		// user IDs would otherwise read an unrelated post's data.
+		if ( $is_post_object ) {
+			$post_id   = $returned_template_parts['ID'];
+			$thumbnail = get_post_thumbnail_id( $post_id );
+			if ( ! empty( $thumbnail ) ) {
+				$returned_template_parts['background'] = $thumbnail;
 			}
 
-			if ( ! empty( get_post_thumbnail_id( $returned_template_parts['ID'] ) ) ) {
-				$returned_template_parts['background'] = get_post_thumbnail_id( $returned_template_parts['ID'] );
-			}
-
-			// Check overwrites.
-			$post_display_overwrite = get_post_meta( $returned_template_parts['ID'], 'mightyshare_enabled', true );
+			$post_display_overwrite = get_post_meta( $post_id, 'mightyshare_enabled', true );
 			if ( ! empty( $post_display_overwrite ) ) {
-				$post_display_overwrite                = filter_var( $post_display_overwrite, FILTER_VALIDATE_BOOLEAN );
-				$returned_template_parts['is_enabled'] = ( $post_display_overwrite ) ? true : false;
+				$returned_template_parts['is_enabled'] = filter_var( $post_display_overwrite, FILTER_VALIDATE_BOOLEAN );
 			}
 
-			$post_template_overwrite = get_post_meta( $returned_template_parts['ID'], 'mightyshare_template', true );
+			$post_template_overwrite = get_post_meta( $post_id, 'mightyshare_template', true );
 			if ( ! empty( $post_template_overwrite ) ) {
 				$returned_template_parts['template'] = $post_template_overwrite;
 			}
 
-			$post_title_overwrite = get_post_meta( $returned_template_parts['ID'], 'mightyshare_title', true );
+			$post_title_overwrite = get_post_meta( $post_id, 'mightyshare_title', true );
 			if ( ! empty( $post_title_overwrite ) ) {
 				$returned_template_parts['title'] = $post_title_overwrite;
 			}
 		}
 
 		// Check is subheadings are enabled.
-		if ( empty( $returned_template_parts['enable_description'] ) || $returned_template_parts['enable_description'] === false ) {
+		if ( empty( $returned_template_parts['enable_description'] ) ) {
 			$returned_template_parts['description'] = null;
 		}
 
-		// Disable font picked if set to template-default.
+		if ( $is_post_object ) {
+			foreach ( self::POST_TEMPLATE_OPTION_KEYS as $option_key ) {
+				$post_template_option_overwrite = get_post_meta( $post_id, 'mightyshare_' . $option_key, true );
+				if ( ! empty( $post_template_option_overwrite ) ) {
+					$returned_template_parts[ $option_key ] = $post_template_option_overwrite;
+				}
+			}
+
+			// Real WooCommerce rating instead of the template's sample values.
+			if ( 'product-1' === $returned_template_parts['template'] && 'product' === $returned_template_parts['type'] && function_exists( 'wc_get_product' ) ) {
+				$product = wc_get_product( $post_id );
+				if ( $product ) {
+					$returned_template_parts['rating']  = number_format( (float) $product->get_average_rating() / 5, 1, '.', '' );
+					$returned_template_parts['reviews'] = (string) (int) $product->get_review_count();
+				}
+			}
+
+			$render_version = get_post_meta( $post_id, 'mightyshare_render_version', true );
+			if ( ! empty( $render_version ) ) {
+				$returned_template_parts['render_version'] = $render_version;
+			}
+		}
+
+		// "Template Default" means: send no font (checked after every overwrite
+		// so a per-post or per-type choice of it works too).
 		if ( ! empty( $returned_template_parts['primary_font'] ) && 'template-default' === $returned_template_parts['primary_font'] ) {
 			$returned_template_parts['primary_font'] = null;
 		}
 
-		// Get post template overwrites.
-		if ( ! empty( $returned_template_parts['ID'] ) ) {
-			$setting_prefix = array(
-				'name'  => 'mightyshare',
-				'value' => array(),
-			);
-			$mightyshare_globals                  = new Mightyshare_Globals();
-			$mightyshare_template_display_options = $mightyshare_globals->mightyshare_template_options( 'post', $setting_prefix );
-
-			foreach ( $mightyshare_template_display_options as $template_option ) {
-				$template_option['field_options']['id'] = str_replace( array( '[', ']' ), array( '_', '' ), $template_option['field_options']['id'] );
-				$mightyshare_field_option = str_replace( 'mightyshare_', '', $template_option['field_options']['id'] );
-				$post_template_option_overwrite = get_post_meta( $returned_template_parts['ID'], $template_option['field_options']['id'], true );
-				if ( ! empty( $post_template_option_overwrite ) ) {
-					$returned_template_parts[ $mightyshare_field_option ] = $post_template_option_overwrite;
-				}
-			}
-		}
-
 		// Apply filters of the render for devs.
-		$returned_template_parts = apply_filters( 'mightyshare_filter_post', $returned_template_parts );
-
-		return $returned_template_parts;
+		return apply_filters( 'mightyshare_filter_post', $returned_template_parts );
 	}
 }
 
-new Mightyshare_Frontend();
+add_action( 'template_redirect', array( Mightyshare_Frontend::instance(), 'mightyshare_opengraph_meta_tags' ), 1 );
+
+/**
+ * Whether background pre-warming is on (settings toggle + developer filter).
+ */
+function mightyshare_prewarm_enabled( $post = null ) {
+	$options = mightyshare_get_options();
+	$enabled = ! empty( $options['enable_mightyshare'] ) && ! empty( $options['mightyshare_api_key'] ) && ( empty( $options['prewarm'] ) || 'no' !== $options['prewarm'] );
+
+	return (bool) apply_filters( 'mightyshare_prewarm_enabled', $enabled, $post );
+}
 
 // Queue a render pre-warm when a post is published or updated. First renders
 // can be slow enough that social crawlers (X in particular) time out and cache
@@ -1229,13 +1518,37 @@ function mightyshare_schedule_og_prewarm( $post_id, $post ) {
 		return;
 	}
 
-	// Core drops duplicate events (same hook + args) queued within 10 minutes,
-	// so a burst of saves collapses into one pre-warm.
-	wp_schedule_single_event( time(), 'mightyshare_prewarm_og_image', array( $post_id ) );
+	// Imports would queue (and bill) one render per imported post.
+	if ( defined( 'WP_IMPORTING' ) && WP_IMPORTING ) {
+		return;
+	}
 
-	// Kick cron now instead of waiting for the next page view — a REST/CLI
-	// publish may never get a follow-up request. Core checks DISABLE_WP_CRON
-	// in wp_cron(), not spawn_cron(), so honor it here.
+	if ( ! mightyshare_prewarm_enabled( $post ) ) {
+		return;
+	}
+
+	$template_parts = Mightyshare_Frontend::instance()->get_mightyshare_post_details( $post_id );
+	if ( empty( $template_parts['is_enabled'] ) ) {
+		return;
+	}
+
+	$args = array( (int) $post_id );
+
+	// The block editor saves over REST, then posts the meta boxes in a second
+	// request. Delay the REST-time event so that second request (which
+	// replaces it) renders with the final per-post options. A REST client
+	// with no meta box follow-up still gets its pre-warm on the next cron run.
+	if ( defined( 'REST_REQUEST' ) && REST_REQUEST ) {
+		wp_schedule_single_event( time() + 30, 'mightyshare_prewarm_og_image', $args );
+		return;
+	}
+
+	wp_clear_scheduled_hook( 'mightyshare_prewarm_og_image', $args );
+	wp_schedule_single_event( time(), 'mightyshare_prewarm_og_image', $args );
+
+	// Kick cron now instead of waiting for the next page view — a CLI publish
+	// may never get a follow-up request. Core checks DISABLE_WP_CRON in
+	// wp_cron(), not spawn_cron(), so honor it here.
 	if ( ! ( defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON ) ) {
 		spawn_cron();
 	}
@@ -1246,72 +1559,323 @@ add_action( 'wp_after_insert_post', 'mightyshare_schedule_og_prewarm', 10, 2 );
 // caches it before any crawler asks for it. The URL is built from post state
 // at run time, so it always reflects the latest saved title/meta and unchanged
 // posts resolve to the same signed URL, served from cache without a new render.
+//
+// Returns the image URL that was requested, or '' when the post was skipped.
 function mightyshare_prewarm_og_image( $post_id ) {
 	$post = get_post( $post_id );
 	if ( ! $post || 'publish' !== $post->post_status ) {
-		return;
+		return '';
 	}
 
-	$mightyshare_frontend = new Mightyshare_Frontend();
-	$template_parts       = $mightyshare_frontend->get_mightyshare_post_details( $post_id );
+	$template_parts = Mightyshare_Frontend::instance()->get_mightyshare_post_details( $post_id );
 
 	if ( empty( $template_parts['is_enabled'] ) ) {
-		return;
+		return '';
 	}
 
+	$image_url = Mightyshare_Frontend::mightyshare_generate_og_image( $template_parts );
+
 	// Nobody is waiting on cron, so give a cold render time to finish.
-	wp_remote_get(
-		Mightyshare_Frontend::mightyshare_generate_og_image( $template_parts ),
-		array( 'timeout' => 20 )
-	);
+	wp_remote_get( $image_url, array( 'timeout' => 20 ) );
+
+	return $image_url;
 }
 add_action( 'mightyshare_prewarm_og_image', 'mightyshare_prewarm_og_image' );
 
+/**
+ * Published post IDs of enabled post types after $after_id, oldest first.
+ * Paging by ID (not offset) stays correct while posts are added or deleted.
+ */
+function mightyshare_bulk_prewarm_ids( $after_id, $limit, $post_types = null ) {
+	global $wpdb;
+
+	if ( null === $post_types ) {
+		$options    = mightyshare_get_options();
+		$post_types = ! empty( $options['enabled_on']['post_types'] ) ? (array) $options['enabled_on']['post_types'] : array();
+	}
+
+	if ( ! $post_types ) {
+		return array();
+	}
+
+	$placeholders = implode( ',', array_fill( 0, count( $post_types ), '%s' ) );
+
+	// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnfinishedPrepare,WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery,WordPress.DB.NoCaching
+	return array_map( 'intval', $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM {$wpdb->posts} WHERE post_status = 'publish' AND post_type IN ($placeholders) AND ID > %d ORDER BY ID ASC LIMIT %d", array_merge( $post_types, array( (int) $after_id, (int) $limit ) ) ) ) );
+}
+
+// Start/cancel from the settings page.
+function mightyshare_bulk_prewarm_handle() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'mightyshare' ) );
+	}
+	check_admin_referer( 'mightyshare_bulk_prewarm' );
+
+	wp_clear_scheduled_hook( 'mightyshare_bulk_prewarm_batch' );
+	$action = isset( $_POST['mightyshare_bulk'] ) ? sanitize_key( wp_unslash( $_POST['mightyshare_bulk'] ) ) : '';
+
+	if ( 'start' === $action ) {
+		$options    = mightyshare_get_options();
+		$post_types = ! empty( $options['enabled_on']['post_types'] ) ? (array) $options['enabled_on']['post_types'] : array();
+		$total      = 0;
+		foreach ( $post_types as $post_type ) {
+			$counts = wp_count_posts( $post_type );
+			$total += isset( $counts->publish ) ? (int) $counts->publish : 0;
+		}
+
+		update_option(
+			'mightyshare_bulk_prewarm',
+			array(
+				'running' => true,
+				'last_id' => 0,
+				'done'    => 0,
+				'total'   => $total,
+			),
+			false
+		);
+		wp_schedule_single_event( time(), 'mightyshare_bulk_prewarm_batch' );
+		spawn_cron();
+	} else {
+		$state            = (array) get_option( 'mightyshare_bulk_prewarm', array() );
+		$state['running'] = false;
+		update_option( 'mightyshare_bulk_prewarm', $state, false );
+	}
+
+	wp_safe_redirect( admin_url( 'options-general.php?page=mightyshare' ) );
+	exit;
+}
+add_action( 'admin_post_mightyshare_bulk_prewarm', 'mightyshare_bulk_prewarm_handle' );
+
+// One WP-Cron batch: renders sequentially for up to ~20 seconds, then queues
+// the next batch, which runs on the following cron trigger (next site visit).
+function mightyshare_bulk_prewarm_batch() {
+	$state = get_option( 'mightyshare_bulk_prewarm' );
+	if ( ! is_array( $state ) || empty( $state['running'] ) ) {
+		return;
+	}
+
+	$started = time();
+	$ids     = mightyshare_bulk_prewarm_ids( $state['last_id'], 10 );
+
+	foreach ( $ids as $id ) {
+		// Re-read so a Cancel clicked mid-batch stops it.
+		wp_cache_delete( 'mightyshare_bulk_prewarm', 'options' );
+		$current = get_option( 'mightyshare_bulk_prewarm' );
+		if ( empty( $current['running'] ) ) {
+			return;
+		}
+
+		mightyshare_prewarm_og_image( $id );
+		$state['last_id'] = $id;
+		++$state['done'];
+		update_option( 'mightyshare_bulk_prewarm', $state, false );
+
+		if ( time() - $started > 20 ) {
+			break;
+		}
+	}
+
+	if ( ! $ids || ! mightyshare_bulk_prewarm_ids( $state['last_id'], 1 ) ) {
+		$state['running']  = false;
+		$state['finished'] = time();
+		update_option( 'mightyshare_bulk_prewarm', $state, false );
+		return;
+	}
+
+	wp_schedule_single_event( time(), 'mightyshare_bulk_prewarm_batch' );
+}
+add_action( 'mightyshare_bulk_prewarm_batch', 'mightyshare_bulk_prewarm_batch' );
+
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+	/**
+	 * Pre-generate MightyShare images for published content.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--post_type=<type>]
+	 * : Only this post type (default: every post type enabled in settings).
+	 *
+	 * [--limit=<number>]
+	 * : Stop after this many posts.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp mightyshare prewarm
+	 *     wp mightyshare prewarm --post_type=product --limit=50
+	 *
+	 * @when after_wp_load
+	 */
+	WP_CLI::add_command(
+		'mightyshare prewarm',
+		function ( $args, $assoc_args ) {
+			$options = mightyshare_get_options();
+			if ( empty( $options['mightyshare_api_key'] ) || empty( $options['enable_mightyshare'] ) ) {
+				WP_CLI::error( 'MightyShare is disabled or has no API key.' );
+			}
+
+			$post_types = ! empty( $assoc_args['post_type'] ) ? array( sanitize_key( $assoc_args['post_type'] ) ) : null;
+			$limit      = ! empty( $assoc_args['limit'] ) ? absint( $assoc_args['limit'] ) : PHP_INT_MAX;
+			$last_id    = 0;
+			$rendered   = 0;
+			$skipped    = 0;
+
+			while ( $rendered + $skipped < $limit ) {
+				$ids = mightyshare_bulk_prewarm_ids( $last_id, min( 50, $limit - $rendered - $skipped ), $post_types );
+				if ( ! $ids ) {
+					break;
+				}
+				foreach ( $ids as $id ) {
+					$last_id = $id;
+					if ( mightyshare_prewarm_og_image( $id ) ) {
+						++$rendered;
+						WP_CLI::log( "Pre-generated #$id " . get_the_title( $id ) );
+					} else {
+						++$skipped;
+					}
+				}
+			}
+
+			WP_CLI::success( "$rendered images requested, $skipped posts skipped (MightyShare disabled for them)." );
+		}
+	);
+}
+
+// Metabox "Load preview" / "Regenerate image".
+function mightyshare_ajax_preview() {
+	check_ajax_referer( 'mightyshare_preview' );
+
+	$post_id = isset( $_POST['post_id'] ) ? absint( wp_unslash( $_POST['post_id'] ) ) : 0;
+	if ( ! $post_id || ! current_user_can( 'edit_post', $post_id ) ) {
+		wp_send_json_error( array( 'message' => __( 'You are not allowed to edit this post.', 'mightyshare' ) ), 403 );
+	}
+
+	$regenerate = ! empty( $_POST['regenerate'] );
+	if ( $regenerate ) {
+		// A new version changes the signed URL, so the renderer makes a fresh
+		// image instead of serving the cached one.
+		update_post_meta( $post_id, 'mightyshare_render_version', (string) time() );
+	}
+
+	$template_parts = Mightyshare_Frontend::instance()->get_mightyshare_post_details( $post_id );
+	if ( empty( $template_parts['is_enabled'] ) ) {
+		wp_send_json_error( array( 'message' => __( 'MightyShare is disabled for this post. Enable it above (or for this post type in settings), then save.', 'mightyshare' ) ) );
+	}
+
+	$image_url = Mightyshare_Frontend::mightyshare_generate_og_image( $template_parts );
+
+	if ( $regenerate ) {
+		wp_remote_get( $image_url, array( 'timeout' => 25 ) );
+	}
+
+	wp_send_json_success( array( 'url' => $image_url ) );
+}
+add_action( 'wp_ajax_mightyshare_preview', 'mightyshare_ajax_preview' );
+
 class Mightyshare_Globals {
 
-	// Grab templates for MightyShare.
-	public function mightyshare_templates() {
-		$theme_options = array(
-			'standard-1'      => 'standard-1',
-			'standard-2'      => 'standard-2',
-			'standard-3'      => 'standard-3',
-			'standard-4'      => 'standard-4',
-			'standard-5'      => 'standard-5',
-			'standard-6'      => 'standard-6',
-			'mesh-1'          => 'mesh-1',
-			'mesh-2'          => 'mesh-2',
-			'mesh-3'          => 'mesh-3',
-			'mighty-1'        => 'mighty-1',
-			'mighty-2'        => 'mighty-2',
-			'mighty-3'        => 'mighty-3',
-			'basic-1'         => 'basic-1',
-			'basic-2'         => 'basic-2',
-			'basic-3'         => 'basic-3',
-			'basic-4'         => 'basic-4',
-			'basic-5'         => 'basic-5',
-			'basic-6'         => 'basic-6',
-			'clean-1'         => 'clean-1',
-			'clean-2'         => 'clean-2',
-			'clean-3'         => 'clean-3',
-			'bold-1'          => 'bold-1',
-			'bold-2'          => 'bold-2',
-			'bold-3'          => 'bold-3',
-			'float-1'         => 'float-1',
-			'float-2'         => 'float-2',
-			'float-3'         => 'float-3',
-			'business-1'      => 'business-1',
-			'business-2'      => 'business-2',
-			'travel-1'        => 'travel-1',
-			'8bit-1'          => '8bit-1',
-			'bar-1'           => 'bar-1',
-			'bar-2'           => 'bar-2',
-			'bar-3'           => 'bar-3',
-			'news-1'          => 'news-1',
-			'news-2'          => 'news-2',
-			'screenshot-self' => 'Use a screenshot of the current page',
-		);
+	// Built-in copy of the template catalog, used until (or whenever) the live
+	// list at MIGHTYSHARE_TEMPLATES_API can't be fetched. Order = picker order.
+	const FALLBACK_TEMPLATES = array(
+		'standard-1' => 'The Original 1',
+		'standard-2' => 'The Original 2',
+		'standard-3' => 'The Original 3',
+		'standard-4' => 'The Original 4',
+		'standard-5' => 'The Original 5',
+		'standard-6' => 'The Original 6',
+		'mesh-1' => 'Color Story 1',
+		'mesh-2' => 'Color Story 2',
+		'mesh-3' => 'Color Story 3',
+		'mighty-1' => 'Mighty Good 1',
+		'mighty-2' => 'Mighty Good 2',
+		'mighty-3' => 'Mighty Good 3',
+		'basic-1' => 'Everyday 1',
+		'basic-2' => 'Everyday 2',
+		'basic-3' => 'Everyday 3',
+		'basic-4' => 'Everyday 4',
+		'basic-5' => 'Everyday 5',
+		'basic-6' => 'Everyday 6',
+		'clean-1' => 'Clean Slate 1',
+		'clean-2' => 'Clean Slate 2',
+		'clean-3' => 'Clean Slate 3',
+		'bold-1' => 'Big Energy 1',
+		'bold-2' => 'Big Energy 2',
+		'bold-3' => 'Big Energy 3',
+		'float-1' => 'Floating Ideas 1',
+		'float-2' => 'Floating Ideas 2',
+		'float-3' => 'Floating Ideas 3',
+		'business-1' => 'Good Business 1',
+		'business-2' => 'Good Business 2',
+		'travel-1' => 'Out There 1',
+		'8bit-1' => 'Pixel Party 1',
+		'8bit-2' => 'Pixel Party 2',
+		'bar-1' => 'The Headliner 1',
+		'bar-2' => 'The Headliner 2',
+		'bar-3' => 'The Headliner 3',
+		'news-1' => 'Front Page 1',
+		'news-2' => 'Front Page 2',
+		'editorial-1' => 'The Editorial 1',
+		'go-1' => 'On the Go 1',
+		'product-1' => 'Shelf Appeal 1',
+		'tweet-1' => 'Social Proof 1',
+	);
 
-		return $theme_options;
+	// Grab templates for MightyShare: id => display name.
+	public function mightyshare_templates() {
+		$theme_options                    = self::template_catalog();
+		$theme_options['screenshot-self'] = 'Use a screenshot of the current page';
+
+		return apply_filters( 'mightyshare_templates', $theme_options );
+	}
+
+	/**
+	 * Live template list from mightyshare.io, cached for 12 hours, so new
+	 * templates appear without a plugin release. Only fetched in admin/cron/CLI
+	 * (never during a front-end page view); falls back to the built-in list.
+	 */
+	protected static function template_catalog() {
+		static $catalog = null;
+
+		if ( null !== $catalog ) {
+			return $catalog;
+		}
+
+		$cached = get_transient( 'mightyshare_template_catalog' );
+		if ( is_array( $cached ) && $cached ) {
+			$catalog = $cached;
+			return $catalog;
+		}
+
+		$catalog = self::FALLBACK_TEMPLATES;
+
+		if ( ! is_admin() && ! wp_doing_cron() && ! ( defined( 'WP_CLI' ) && WP_CLI ) ) {
+			return $catalog;
+		}
+
+		$response = wp_remote_get( MIGHTYSHARE_TEMPLATES_API, array( 'timeout' => 3 ) );
+		$body     = is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ? null : json_decode( wp_remote_retrieve_body( $response ), true );
+
+		if ( empty( $body['templates'] ) || ! is_array( $body['templates'] ) ) {
+			// Retry in an hour rather than on every admin page view.
+			set_transient( 'mightyshare_template_catalog', $catalog, HOUR_IN_SECONDS );
+			return $catalog;
+		}
+
+		$remote = array();
+		foreach ( $body['templates'] as $template ) {
+			if ( ! empty( $template['id'] ) && is_string( $template['id'] ) ) {
+				$id            = sanitize_key( $template['id'] );
+				$remote[ $id ] = ! empty( $template['name'] ) && is_string( $template['name'] ) ? sanitize_text_field( $template['name'] ) : $id;
+			}
+		}
+
+		if ( $remote ) {
+			// Known templates keep their familiar order; new ones go at the end.
+			$catalog = array_merge( array_intersect_key( self::FALLBACK_TEMPLATES, $remote ), $remote );
+		}
+
+		set_transient( 'mightyshare_template_catalog', $catalog, 12 * HOUR_IN_SECONDS );
+
+		return $catalog;
 	}
 	
 	/**
@@ -1357,7 +1921,7 @@ class Mightyshare_Globals {
 	}
 
 	public function isSquirrlyActive() {
-		return in_array( 'squirrly-seo/squirrly.php', self::active_plugins(), true ) || defined( 'SQUIRRLY_VERSION' );
+		return in_array( 'squirrly-seo/squirrly.php', self::active_plugins(), true ) || defined( 'SQUIRRLY_VERSION' ) || defined( 'SQ_VERSION' );
 	}
 
 	public function mightyshare_template_options( $value, $setting_prefix ) {

@@ -160,3 +160,17 @@
 }
 
 .mightyshare-image-field-preview{max-width:200px;max-height:200px;height:auto;display:block}
+
+.mightyshare-preview-status {
+	margin-left: 8px;
+	vertical-align: middle;
+}
+
+.mightyshare-preview-image img {
+	display: block;
+	max-width: 100%;
+	width: 600px;
+	height: auto;
+	margin-top: 10px;
+	border: 1px solid #dcdcde;
+}

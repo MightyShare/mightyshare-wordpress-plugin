@@ -33,6 +33,38 @@ jQuery(function($) {
 		$(this).hide().prev().val('').prev().prev().addClass('button').html(mightyshareObject.uploadImage);
 		return false;
 	});
+
+	/* Share image preview / regenerate */
+	$('body').on('click', '.mightyshare-preview-load, .mightyshare-preview-regenerate', function() {
+		var wrap = $(this).closest('.mightyshare-preview'),
+			regenerate = $(this).hasClass('mightyshare-preview-regenerate'),
+			buttons = wrap.find('button'),
+			status = wrap.find('.mightyshare-preview-status'),
+			image = wrap.find('.mightyshare-preview-image');
+
+		buttons.prop('disabled', true);
+		status.text(regenerate ? mightyshareObject.rendering : mightyshareObject.loading);
+
+		$.post(ajaxurl, {
+			action: 'mightyshare_preview',
+			_ajax_nonce: mightyshareObject.previewNonce,
+			post_id: wrap.data('post-id'),
+			regenerate: regenerate ? 1 : 0
+		}).done(function(response) {
+			if (!response || !response.success) {
+				status.text(response && response.data && response.data.message ? response.data.message : mightyshareObject.failed);
+				return;
+			}
+			var img = $('<img alt="">').attr('src', response.data.url);
+			img.on('load', function() { status.text(''); });
+			img.on('error', function() { status.text(mightyshareObject.failed); });
+			image.empty().append(img);
+		}).fail(function() {
+			status.text(mightyshareObject.failed);
+		}).always(function() {
+			buttons.prop('disabled', false);
+		});
+	});
 });
 
 function toggleApiKeyFieldMask(field) {

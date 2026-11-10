@@ -38,6 +38,10 @@ add_action( 'admin_enqueue_scripts', function( $hook ) {
 		'insertImage'  => __( 'Insert image', 'mightyshare' ),
 		'useThisImage' => __( 'Use this image', 'mightyshare' ),
 		'uploadImage'  => __( 'Upload Image', 'mightyshare' ),
+		'previewNonce' => wp_create_nonce( 'mightyshare_preview' ),
+		'loading'      => __( 'Loading…', 'mightyshare' ),
+		'rendering'    => __( 'Rendering a fresh image…', 'mightyshare' ),
+		'failed'       => __( 'Could not load the preview.', 'mightyshare' ),
 	) );
 
 	wp_enqueue_style( 'wp-color-picker' );
@@ -116,6 +120,12 @@ function render_mightyshare_select_field( $param, $value = '', $prefix = '' ) {
 		?>
 		<option value=""><?php echo esc_html( $param['placeholder'] ); ?></option>
 		<?php
+	}
+
+	// Keep a saved value selectable even if it left the list (e.g. a template
+	// retired from the catalog), so re-saving settings doesn't silently change it.
+	if ( '' !== $value && ! empty( $param['options'] ) && is_array( $param['options'] ) && ! isset( $param['options'][ $value ] ) ) {
+		$param['options'] = array( $value => $value ) + $param['options'];
 	}
 
 	if ( ! empty( $param['options'] ) && is_array( $param['options'] ) ) {
@@ -215,6 +225,24 @@ function render_mightyshare_checkbox_field( $param, $value = '', $prefix = '' ) 
 			<p class="mightyshare-description description"><?php echo wp_kses_post( $param['description'] ); ?></p>
 			<?php
 		}
+}
+
+function render_mightyshare_preview_field( $post ) {
+	if ( 'auto-draft' === $post->post_status ) {
+		?>
+		<p class="mightyshare-description description"><?php esc_html_e( 'Save the post to preview its share image.', 'mightyshare' ); ?></p>
+		<?php
+		return;
+	}
+	?>
+	<div class="mightyshare-preview" data-post-id="<?php echo esc_attr( $post->ID ); ?>">
+		<button type="button" class="button mightyshare-preview-load"><?php esc_html_e( 'Load preview', 'mightyshare' ); ?></button>
+		<button type="button" class="button mightyshare-preview-regenerate"><?php esc_html_e( 'Regenerate image', 'mightyshare' ); ?></button>
+		<span class="mightyshare-preview-status" aria-live="polite"></span>
+		<div class="mightyshare-preview-image"></div>
+		<p class="mightyshare-description description"><?php esc_html_e( 'Shows the image for the last saved version of this post. Regenerate forces a fresh render (one render); clear any page cache afterwards so crawlers see the new image.', 'mightyshare' ); ?></p>
+	</div>
+	<?php
 }
 
 function render_mightyshare_image_field( $param, $value = '', $prefix = '' ) {
