@@ -79,7 +79,9 @@ if ( ! class_exists( 'Mightyshare_Meta_Boxes' ) ) {
 						<?php
 					}
 
-					$field['classes'] = ( isset( $field['class'] ) && ! is_array( $field['class'] ) ) ? $field['class'] : ( isset( $field['class'] ) ? join( ' ', $field['class'] ) : '' );
+					if ( isset( $field['class'] ) ) {
+						$field['classes'] = is_array( $field['class'] ) ? join( ' ', $field['class'] ) : $field['class'];
+					}
 					$name             = $field['id'];
 					$value            = get_post_meta( $post->ID, $name, true );
 
@@ -90,10 +92,6 @@ if ( ! class_exists( 'Mightyshare_Meta_Boxes' ) ) {
 							render_mightyshare_text_field( $field, $value, $this->prefix );
 							break;
 
-						case 'textarea':
-							render_mightyshare_textarea_field( $field, $value, $this->prefix );
-							break;
-
 						/* checkbox */
 						case 'checkbox':
 							render_mightyshare_checkbox_field( $field, $value, $this->prefix );
@@ -102,11 +100,6 @@ if ( ! class_exists( 'Mightyshare_Meta_Boxes' ) ) {
 						/* select */
 						case 'select':
 							render_mightyshare_select_field( $field, $value, $this->prefix );
-							break;
-
-						/* radio */
-						case 'radio':
-							render_mightyshare_radio_field( $field, $value, $this->prefix );
 							break;
 
 						/* color */
@@ -188,8 +181,12 @@ if ( ! class_exists( 'Mightyshare_Meta_Boxes' ) ) {
 
 				$name  = $field['id'];
 				if ( isset( $_POST[ $name ] ) ) {
-					$raw   = wp_unslash( $_POST[ $name ] );
+					$raw   = wp_unslash( $_POST[ $name ] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- sanitized by type below; nonce checked above.
 					$value = sanitize_mightyshare_field( $raw, $field['type'] );
+					// Template values are slugs; the admin UI puts them in image URLs.
+					if ( 'mightyshare_template' === $name ) {
+						$value = mightyshare_sanitize_template( $value );
+					}
 				} else {
 					$value = '';
 				}

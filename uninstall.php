@@ -25,12 +25,8 @@ if ( ! is_multisite() ) {
 	return;
 }
 
-global $wpdb;
-
-$blog_ids = $wpdb->get_col( "SELECT blog_id FROM {$wpdb->blogs}" );
-
-foreach ( $blog_ids as $blog_id ) {
-	switch_to_blog( (int) $blog_id );
+foreach ( get_sites( array( 'fields' => 'ids', 'number' => 0 ) ) as $mightyshare_blog_id ) {
+	switch_to_blog( (int) $mightyshare_blog_id );
 	mightyshare_uninstall_site();
 	restore_current_blog();
 }

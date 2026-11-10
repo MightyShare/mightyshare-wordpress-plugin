@@ -3,9 +3,9 @@ Contributors: someguy9
 Donate link: https://www.buymeacoffee.com/someguy
 Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
 Requires at least: 6.0
-Tested up to: 7.0
+Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.5.1
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
@@ -31,7 +31,7 @@ MightyShare sends your post's title, featured image, and post meta data to our s
 * Perfect solution for branded social images.
 * Robust customization.
 * SEO plugin compatibility: Yoast SEO, RankMath, All in One SEO, The SEO Framework, Slim SEO, Squirrly SEO, SEOPress, and Jetpack.
-* Adds Open Graph and X (Twitter) large-card meta tags if you don’t have an SEO plugin.
+* Adds Open Graph and X (Twitter) image tags if you don’t have an SEO plugin.
 * Preview and regenerate each post's image right in the editor.
 * Pre-generate images for all existing content from settings, or with `wp mightyshare prewarm`.
 * Optional images for the homepage, blog page, post type archives, and the WooCommerce shop.
@@ -86,12 +86,28 @@ This plugin connects to MightyShare (https://mightyshare.io) to create social sh
 
 * **Image rendering** (`api.mightyshare.io`): the plugin builds a signed image URL that contains your public API key ID, the page URL, and the post title, excerpt (if subheadings are enabled), featured image URL, logo URL, colors, font and template you configured. That URL is placed in your page's meta tags; social networks (and the plugin's pre-generation, when you publish) request it, and MightyShare renders the image. If you pick the "screenshot" template, MightyShare loads your public page to capture it.
 * **API key check** (`api.mightyshare.io/validate-key/`): when you save your API key, and at most every 12 hours while you view the settings page, the plugin sends the key to look up your plan.
-* **Template list** (`mightyshare.io/api/templates`): fetched in the WordPress admin and cached for 12 hours (retried after an hour if it fails) to show the current templates. No site or user data is sent.
-* **Template previews** (`api.mightyshare.io/template/preview/`): sample images shown in the admin template picker. No site or user data is sent.
+* **Template list** (`mightyshare.io/api/templates`): fetched in the WordPress admin and cached for 12 hours (retried after an hour if it fails) to show the current templates. Only WordPress's standard request headers (which include your site URL) are sent.
+* **Template previews** (`api.mightyshare.io/template/preview/`): sample images shown in the admin template picker, loaded by your browser.
 
 [Privacy Policy](https://mightyshare.io/privacy-policy/)
 
 == Changelog ==
+
+= 1.5.1 =
+* Security: template values are now saved as slugs and the admin preview no longer builds HTML from them, closing a stored XSS that a Contributor could trigger for an admin.
+* Fix: Cancel on "Pre-generate All Images" now stops a batch that is mid-render.
+* Fix: bulk pre-generate and `wp mightyshare prewarm` now report failed renders, and stop with a clear message when MightyShare rejects requests (invalid key, plan or rate limit). A failed "Regenerate image" keeps the previous image.
+* Fix: bulk pre-generate processes as many posts as fit in each background run instead of 10, so large sites finish much sooner.
+* Fix: previewing a draft (with pretty permalinks) renders the image for its future URL, so the render is reused after publishing.
+* Fix: new posts showed "Default (Disabled)" in the MightyShare box even when the post type was enabled.
+* Fix: the paid-plan font lock now also applies in the post editor.
+* Fix: the plan status is cleared when the API key is removed or rejected.
+* Fix: the template list is never fetched during a visitor's AJAX request.
+* Fix: MightyShare admin styles no longer affect other plugins' boxes on the post edit screen.
+* Accessibility: toggles and the template picker work with the keyboard and screen readers.
+* Polish: clearer settings and editor wording ("override" instead of "overwrite", template names instead of IDs), more specific preview errors, a progress hint and failure count for bulk pre-generate, the setup notice only shows to admins, and "Enable Open Graph" starts switched on in settings for new installs without an SEO plugin.
+* The plugin's name in the Plugins list now matches its wordpress.org listing.
+* Tested up to WordPress 7.1.
 
 = 1.5.0 =
 * New: preview the share image in the post editor, and "Regenerate image" to force a fresh render.

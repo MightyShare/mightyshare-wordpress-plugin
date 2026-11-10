@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 add_action( 'admin_enqueue_scripts', function( $hook ) {
 	global $pagenow;
 
-	$current_page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : '';
+	$current_page = isset( $_GET['page'] ) ? sanitize_key( wp_unslash( $_GET['page'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only screen detection.
 	if ( ! ( ! empty( $pagenow ) && ( 'post.php' === $pagenow || 'post-new.php' === $pagenow ) ) && 'mightyshare' !== $current_page ) {
 		return;
 	}
@@ -37,11 +37,11 @@ add_action( 'admin_enqueue_scripts', function( $hook ) {
 	wp_localize_script( 'mightyshare_admin_js', 'mightyshareObject', array(
 		'insertImage'  => __( 'Insert image', 'mightyshare' ),
 		'useThisImage' => __( 'Use this image', 'mightyshare' ),
-		'uploadImage'  => __( 'Upload Image', 'mightyshare' ),
+		'uploadImage'  => __( 'Upload image', 'mightyshare' ),
 		'previewNonce' => wp_create_nonce( 'mightyshare_preview' ),
 		'loading'      => __( 'Loading…', 'mightyshare' ),
 		'rendering'    => __( 'Rendering a fresh image…', 'mightyshare' ),
-		'failed'       => __( 'Could not load the preview.', 'mightyshare' ),
+		'failed'       => __( 'The image could not be loaded. Check your API key in Settings > MightyShare, then try again.', 'mightyshare' ),
 	) );
 
 	wp_enqueue_style( 'wp-color-picker' );
@@ -114,7 +114,7 @@ function render_mightyshare_select_field( $param, $value = '', $prefix = '' ) {
 	$printable_id = ( isset( $param['id'] ) ? str_replace( ']', '', str_replace( '[', '_', $param['id'] ) ) : '' );
 
 	?>
-	<select id="<?php echo esc_attr( $prefix . $printable_id ); ?>" name="<?php echo esc_attr( $param['id'] ); ?>" class="<?php echo esc_attr( ( ! empty( $param['classes'] ) ? $param['classes'] : '' ) ); ?>">
+	<select id="<?php echo esc_attr( $prefix . $printable_id ); ?>" name="<?php echo esc_attr( $param['id'] ); ?>" class="<?php echo esc_attr( ( ! empty( $param['classes'] ) ? $param['classes'] : '' ) ); ?>"<?php echo ! empty( $param['default_template'] ) ? ' data-default-template="' . esc_attr( $param['default_template'] ) . '"' : ''; ?>>
 	<?php
 	if ( isset( $param['placeholder'] ) ) {
 		?>
@@ -141,7 +141,7 @@ function render_mightyshare_select_field( $param, $value = '', $prefix = '' ) {
 	<?php
 	if ( isset( $param['classes'] ) && 'mightyshare_template_field' === $param['classes'] ) {
 		?>
-		<a href="#TB_inline?&width=753&height=750&inlineId=mightyshare-template-picker" class="mightyshare-template-picker-button thickbox button button-primary" data-pickerfor="<?php echo esc_attr( $prefix . $printable_id ); ?>">Browse Templates</a>
+		<a href="#TB_inline?&width=753&height=750&inlineId=mightyshare-template-picker" class="mightyshare-template-picker-button thickbox button button-primary" data-pickerfor="<?php echo esc_attr( $prefix . $printable_id ); ?>"><?php esc_html_e( 'Browse Templates', 'mightyshare' ); ?></a>
 		<?php
 		if ( isset( $param['modal'] ) && isset( $param['modal_id'] ) ) {
 			?>
@@ -165,7 +165,7 @@ function render_mightyshare_text_field( $param, $value = '', $prefix = '' ) {
 	$value = $value ? $value : ( isset( $param['default'] ) ? $param['default'] : '' );
 
 	?>
-	<input type="text" value="<?php echo esc_attr( $value ); ?>" id="<?php echo esc_attr( $prefix . $param['id'] ); ?>" name="<?php echo esc_attr( $param['id'] ); ?>" class="<?php echo esc_attr( ( ! empty( $param['classes'] ) ? ' ' . $param['classes'] : '' ) ); ?>" value="<?php echo esc_attr( $value ); ?>">
+	<input type="text" id="<?php echo esc_attr( $prefix . $param['id'] ); ?>" name="<?php echo esc_attr( $param['id'] ); ?>" class="<?php echo esc_attr( ( ! empty( $param['classes'] ) ? ' ' . $param['classes'] : '' ) ); ?>" value="<?php echo esc_attr( $value ); ?>">
 	<?php
 	if ( isset( $param['description'] ) ) {
 		?>
@@ -179,7 +179,7 @@ function render_mightyshare_color_field( $param, $value = '', $prefix = '' ) {
 	$value = $value ? $value : ( isset( $param['default'] ) ? $param['default'] : '' );
 
 	?>
-	<input type="text" value="<?php echo esc_attr( $value ); ?>" id="<?php echo esc_attr( $prefix . $param['id'] ); ?>" name="<?php echo esc_attr( $param['id'] ); ?>" class="mightyshare_color_field<?php echo esc_attr( ( ! empty( $param['classes'] ) ? ' ' . $param['classes'] : '' ) ); ?>" value="<?php echo esc_attr( $value ); ?>">
+	<input type="text" id="<?php echo esc_attr( $prefix . $param['id'] ); ?>" name="<?php echo esc_attr( $param['id'] ); ?>" class="mightyshare_color_field<?php echo esc_attr( ( ! empty( $param['classes'] ) ? ' ' . $param['classes'] : '' ) ); ?>" value="<?php echo esc_attr( $value ); ?>">
 	<?php
 	if ( isset( $param['description'] ) ) {
 		?>
@@ -206,6 +206,9 @@ function render_mightyshare_checkbox_field( $param, $value = '', $prefix = '' ) 
 		<?php if ( ! empty( $param['set_value'] ) ) { ?>
 			value="<?php echo esc_attr( $param['set_value'] ); ?>"
 		<?php }; ?>
+		<?php if ( ! $label && ! empty( $param['aria_label'] ) ) { ?>
+			aria-label="<?php echo esc_attr( $param['aria_label'] ); ?>"
+		<?php } ?>
 		<?php echo checked( 'yes', $value, false ); ?> />
 		<?php
 		if ( ! empty( $param['classes'] ) && 'mightyshare-toggler-wrapper' === $param['classes'] ) {

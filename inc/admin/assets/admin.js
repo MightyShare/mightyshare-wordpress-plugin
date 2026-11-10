@@ -57,7 +57,7 @@ jQuery(function($) {
 			}
 			var img = $('<img alt="">').attr('src', response.data.url);
 			img.on('load', function() { status.text(''); });
-			img.on('error', function() { status.text(mightyshareObject.failed); });
+			img.on('error', function() { img.remove(); status.text(mightyshareObject.failed); });
 			image.empty().append(img);
 		}).fail(function() {
 			status.text(mightyshareObject.failed);
@@ -72,23 +72,20 @@ function toggleApiKeyFieldMask(field) {
 	selectedField.type = this.event.target.checked ? "text" : "password";
 }
 
-function getMightyShareTemplateValue(event) {
-	let templateSelected = event.value;
-	if( ! templateSelected ){
-		if( event.options[event.selectedIndex].text.match(/\((.*)\)/) ){
-			templateSelected = event.options[event.selectedIndex].text.match(/\((.*)\)/).pop();
-		}
-	}
-	return templateSelected;
+function getMightyShareTemplateValue(select) {
+	// An empty value means "Default": the select carries the template it resolves to.
+	return select.value || select.dataset.defaultTemplate || '';
 }
 
-function renderMightyShareTemplatePreview(event){
-	const result = event.closest("td").querySelector(".mightyshare-image-preview");
-	let templateSelected = getMightyShareTemplateValue(event);
-	if( templateSelected && templateSelected != "screenshot-self" ){
-		result.innerHTML = `<img src="https://api.mightyshare.io/template/preview/${templateSelected}.jpeg">`;
-	}else{
-		result.innerHTML = ``;
+function renderMightyShareTemplatePreview(select){
+	const result = select.closest("td").querySelector(".mightyshare-image-preview");
+	const templateSelected = getMightyShareTemplateValue(select);
+	result.replaceChildren();
+	if( templateSelected && templateSelected !== "screenshot-self" ){
+		const img = document.createElement("img");
+		img.alt = "";
+		img.src = "https://api.mightyshare.io/template/preview/" + encodeURIComponent(templateSelected) + ".jpeg";
+		result.appendChild(img);
 	}
 }
 
@@ -112,13 +109,21 @@ jQuery(document).ready(function(){
 	jQuery(".mightyshare-template-picker-button").on("click", function(e) {
 		let templateSelected = getMightyShareTemplateValue(document.querySelector("#"+jQuery(e.currentTarget).attr("data-pickerfor")));
 		jQuery("#mightyshare-template-picker-modal").attr("data-pickerfor", jQuery(e.currentTarget).attr("data-pickerfor"));
-		jQuery("#mightyshare-template-picker-modal .template-block").removeClass('active');
-		jQuery("#mightyshare-template-picker-modal .template-block[data-mightysharetemplate="+templateSelected+"]").addClass('active');
+		jQuery("#mightyshare-template-picker-modal .template-block").removeClass('active').attr('aria-pressed', 'false').filter(function() {
+			return jQuery(this).attr("data-mightysharetemplate") === templateSelected;
+		}).addClass('active').attr('aria-pressed', 'true');
+	});
+
+	jQuery("#mightyshare-template-picker-modal .template-block").on("keydown", function(e) {
+		if (e.key === "Enter" || e.key === " ") {
+			e.preventDefault();
+			jQuery(this).trigger("click");
+		}
 	});
 
 	jQuery("#mightyshare-template-picker-modal .template-block").on("click", function(e) {
 		var selectedTemplateField = jQuery(e.currentTarget).parent("#mightyshare-template-picker-modal").attr('data-pickerfor');
-		var selectedTemplate = jQuery(e.currentTarget).data("mightysharetemplate");
+		var selectedTemplate = jQuery(e.currentTarget).attr("data-mightysharetemplate");
 		jQuery("#"+selectedTemplateField).val(selectedTemplate);
 		document.querySelector("#"+selectedTemplateField).dispatchEvent(new Event("change"));
 		tb_remove();
