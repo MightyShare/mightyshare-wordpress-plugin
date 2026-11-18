@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: MightyShare - Auto-Generated Social Media Images
+ * Plugin Name: MightyShare - Automatic Open Graph (OG) Image Generator
  * Plugin URI: https://mightyshare.io/wordpress/
- * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.6.0
+ * Description: Automatically create a branded Open Graph (OG) image for every post from its title and featured image.
+ * Version: 1.6.1
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: mightyshare
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.6.0' );
+define( 'MIGHTYSHARE_VERSION', '1.6.1' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 define( 'MIGHTYSHARE_TEMPLATES_API', 'https://mightyshare.io/api/templates' );

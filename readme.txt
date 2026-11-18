@@ -1,23 +1,31 @@
-=== MightyShare - Auto-Generated Social Media Images ===
+=== MightyShare - Automatic Open Graph (OG) Image Generator ===
 Contributors: someguy9
-Donate link: https://www.buymeacoffee.com/someguy
-Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
+Tags: og image, open graph image, social image, featured image, open graph
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.6.0
+Stable tag: 1.6.1
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
-Automatically generate social share preview images with MightyShare!
+Automatically create a branded Open Graph (OG) image for every post from its title and featured image. Works with Yoast, Rank Math and AIOSEO.
 
 == Description ==
 
-### MIGHTYSHARE: GENERATE SOCIAL SHARE OPEN GRAPH IMAGES
+### EVERY POST GETS A SHARE IMAGE THAT LOOKS GOOD
 
-Automatically generate social share preview images (also known as Open Graph images) with **[MightyShare](https://mightyshare.io/)**! MightyShare takes your post title and featured image to generate a beautiful share image for your content. Compatible with posts, pages, and custom post types your social shares will look stunning in no time. Customize [templates](https://mightyshare.io/templates/) with your brand colors, logo, and more.
+When someone shares your post on Facebook, LinkedIn, X, Slack or iMessage, the preview image is what gets the click. Most posts show a badly cropped featured image or a blank box.
 
-To use the plugin you'll need to [create a free MightyShare account](https://mightyshare.io/register/).
+**[MightyShare](https://mightyshare.io/)** turns each post's title and featured image into an on-brand Open Graph image with your logo, colors and font. Set it up once and every new post gets one automatically. No Canva, no exporting, no uploading.
+
+* Connect your account in one click and pick from 20+ [templates](https://mightyshare.io/templates/).
+* Works with Yoast SEO, Rank Math, All in One SEO, SEOPress and more, or adds the OG tags itself.
+* Generate images for every post you've already published in one go.
+* Free for 50 images every 30 days. [Paid plans](https://mightyshare.io/pricing/) start at $9 a month.
+
+> "I wanted to just publish my post and have a share image that looked good, auto-generated from the post itself. That's exactly what this does, and it does it really well." (Matt Cromwell)
+
+To use the plugin you'll need a [free MightyShare account](https://mightyshare.io/register/). The Connect button can create one for you.
 
 ### HOW DOES IT WORK?
 
@@ -109,6 +117,9 @@ This plugin connects to MightyShare (https://mightyshare.io) to create social sh
 8. Pick the post types and pages. Start free with 50 renders every 30 days.
 
 == Changelog ==
+
+= 1.6.1 =
+* Readme: clearer plugin name, description and tags.
 
 = 1.6.0 =
 * New: "Connect with MightyShare" button. Sign in, approve your site, and the API key is saved for you. Pasting a key still works.
