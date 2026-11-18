@@ -3,7 +3,7 @@
  * Plugin Name: MightyShare - Auto-Generated Social Media Images
  * Plugin URI: https://mightyshare.io/wordpress/
  * Description: Automatically generate social share preview images with MightyShare!
- * Version: 1.5.1
+ * Version: 1.6.0
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: mightyshare
@@ -17,10 +17,14 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit; // Exit if accessed directly.
 }
 
-define( 'MIGHTYSHARE_VERSION', '1.5.1' );
+define( 'MIGHTYSHARE_VERSION', '1.6.0' );
 define( 'MIGHTYSHARE_DIR_URL', plugin_dir_url( __FILE__ ) );
 define( 'MIGHTYSHARE_DIR_URI', plugin_dir_path( __FILE__ ) );
 define( 'MIGHTYSHARE_TEMPLATES_API', 'https://mightyshare.io/api/templates' );
+// Account site for "Connect with MightyShare". Define it in wp-config.php to test against a local app.
+if ( ! defined( 'MIGHTYSHARE_APP_URL' ) ) {
+	define( 'MIGHTYSHARE_APP_URL', 'https://mightyshare.io' );
+}
 
 // Translations load automatically from translate.wordpress.org (WP 4.6+).
 add_action( 'init', function() {
@@ -283,6 +287,8 @@ class Mightyshare_Plugin_Options {
 		add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
 		add_action( 'in_admin_header', array( $this, 'admin_header' ) );
 		add_action( 'admin_init', array( $this, 'init_settings' ) );
+		add_action( 'admin_init', array( $this, 'connect_callback' ), 15 ); // After init_settings registers the sanitize callback.
+		add_action( 'admin_post_mightyshare_connect', array( $this, 'connect_start' ) );
 
 		$mightyshare_options = mightyshare_get_options();
 		if ( ! is_array( $mightyshare_options ) || empty( $mightyshare_options['mightyshare_api_key'] ) ) {
@@ -304,7 +310,7 @@ class Mightyshare_Plugin_Options {
 		}
 		?>
 		<?php /* translators: %s: URL of the MightyShare settings page */ ?>
-		<div class='mightyshare notice notice-success'><p><?php echo wp_kses_post( sprintf( __( 'Thanks for installing <strong>MightyShare</strong>! Add your API key in <a href="%s">Settings &gt; MightyShare</a> to start generating share images.', 'mightyshare' ), menu_page_url( 'mightyshare', false ) ) ); ?></p></div>
+		<div class='mightyshare notice notice-success'><p><?php echo wp_kses_post( sprintf( __( 'Thanks for installing <strong>MightyShare</strong>! Connect your account in <a href="%s">Settings &gt; MightyShare</a> to start generating share images.', 'mightyshare' ), menu_page_url( 'mightyshare', false ) ) ); ?></p></div>
 		<?php
 	}
 
@@ -316,6 +322,124 @@ class Mightyshare_Plugin_Options {
 			'mightyshare',
 			array( $this, 'page_layout' )
 		);
+	}
+
+	/**
+	 * "Connect with MightyShare": send the admin to mightyshare.io to approve this
+	 * site. The app sends them back to the settings page with a one-time code,
+	 * handled by connect_callback().
+	 */
+	public function connect_start() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have sufficient permissions to access this page.', 'mightyshare' ) );
+		}
+		check_admin_referer( 'mightyshare_connect' );
+
+		// CSRF check for the return trip: only this user's latest connect attempt is accepted.
+		$state = wp_generate_password( 32, false );
+		set_transient( 'mightyshare_connect_' . get_current_user_id(), $state, 10 * MINUTE_IN_SECONDS );
+
+		$url = add_query_arg(
+			array(
+				'site'   => rawurlencode( site_url() ),
+				'return' => rawurlencode( admin_url( 'options-general.php?page=mightyshare' ) ),
+				'state'  => $state,
+			),
+			untrailingslashit( MIGHTYSHARE_APP_URL ) . '/connect'
+		);
+		wp_redirect( $url ); // phpcs:ignore WordPress.Security.SafeRedirect.wp_redirect_wp_redirect -- external by design (MIGHTYSHARE_APP_URL).
+		exit;
+	}
+
+	/**
+	 * Back from mightyshare.io: exchange the one-time code for the API key, save
+	 * it through the normal settings sanitize callback (validates the key and
+	 * stores the plan, like a manual save) and show the result as a settings notice.
+	 */
+	public function connect_callback() {
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- the one-time state is the CSRF check.
+		if ( ! isset( $_GET['page'], $_GET['state'] ) || 'mightyshare' !== sanitize_key( wp_unslash( $_GET['page'] ) ) || ! ( isset( $_GET['mightyshare_code'] ) || isset( $_GET['mightyshare_error'] ) ) ) {
+			return;
+		}
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$state_key = 'mightyshare_connect_' . get_current_user_id();
+		$expected  = get_transient( $state_key );
+		delete_transient( $state_key );
+		$state = sanitize_text_field( wp_unslash( $_GET['state'] ) );
+		$code  = isset( $_GET['mightyshare_code'] ) ? sanitize_text_field( wp_unslash( $_GET['mightyshare_code'] ) ) : '';
+		// phpcs:enable
+
+		$error = '';
+		if ( ! is_string( $expected ) || ! hash_equals( $expected, $state ) ) {
+			$error = __( 'Connection expired, try again.', 'mightyshare' );
+		} elseif ( '' === $code ) {
+			$error = __( 'Connection was cancelled.', 'mightyshare' );
+		} else {
+			$response = wp_remote_post(
+				untrailingslashit( MIGHTYSHARE_APP_URL ) . '/api/connect/exchange',
+				array(
+					'timeout' => 10,
+					'headers' => array( 'Content-Type' => 'application/json' ),
+					'body'    => wp_json_encode(
+						array(
+							'code' => $code,
+							'site' => site_url(),
+						)
+					),
+				)
+			);
+			$status  = wp_remote_retrieve_response_code( $response );
+			$account = json_decode( wp_remote_retrieve_body( $response ), true );
+
+			if ( is_wp_error( $response ) ) {
+				/* translators: %s: error message */
+				$error = sprintf( __( 'Couldn\'t reach MightyShare: %s Try again.', 'mightyshare' ), $response->get_error_message() );
+			} elseif ( 429 === $status ) {
+				$error = __( 'Too many connection attempts. Wait a minute, then try again.', 'mightyshare' );
+			} elseif ( 200 !== $status || ! is_array( $account ) || empty( $account['api_key'] ) || ! is_string( $account['api_key'] ) ) {
+				$error = __( 'Connection expired, try again.', 'mightyshare' );
+			}
+		}
+
+		if ( $error ) {
+			add_settings_error( 'mightyshare', 'mightyshare_connect_error', esc_html( $error ), 'error' );
+		} else {
+			add_settings_error(
+				'mightyshare',
+				'mightyshare_connected',
+				esc_html(
+					sprintf(
+						/* translators: 1: account email, 2: plan name */
+						__( 'Connected as %1$s (%2$s plan).', 'mightyshare' ),
+						isset( $account['email'] ) ? sanitize_email( $account['email'] ) : '',
+						isset( $account['plan'] ) ? sanitize_text_field( $account['plan'] ) : ''
+					)
+				),
+				'success'
+			);
+
+			$options = get_option( 'mightyshare' );
+			if ( ! is_array( $options ) ) {
+				// Fresh install: save the defaults the settings form shows, so connecting alone turns MightyShare on.
+				$options = array(
+					'enable_mightyshare' => 'checked',
+					'enabled_on'         => array( 'post_types' => array_values( get_post_types( array( 'public' => true ) ) ) ),
+				);
+				if ( $this->no_seo_plugin() ) {
+					$options['output_opengraph'] = 'yes';
+				}
+			}
+			$options['mightyshare_api_key'] = $account['api_key'];
+			update_option( 'mightyshare', $options ); // Runs mightyshare_merge_options().
+		}
+
+		// Same hand-off options.php uses, so core prints the notices on the settings page.
+		set_transient( 'settings_errors', get_settings_errors(), 30 );
+		wp_safe_redirect( admin_url( 'options-general.php?page=mightyshare&settings-updated=true' ) );
+		exit;
 	}
 
 	function mightyshare_merge_options( $data ) {
@@ -802,15 +926,28 @@ class Mightyshare_Plugin_Options {
 		$field_type    = isset( $options['mightyshare_api_key'] ) ? 'password' : 'text';
 		$checked       = isset( $options['mightyshare_api_key'] ) ? '' : 'checked';
 
+		$connect_url = wp_nonce_url( admin_url( 'admin-post.php?action=mightyshare_connect' ), 'mightyshare_connect' );
+
 		// Field output.
 		?>
+		<?php if ( '' === trim( $value_api_key ) ) { ?>
+			<p class="mightyshare-connect"><a href="<?php echo esc_url( $connect_url ); ?>" class="button button-primary button-large"><?php esc_html_e( 'Connect with MightyShare', 'mightyshare' ); ?></a></p>
+			<p class="mightyshare-description description"><?php esc_html_e( 'Sign in (or create a free account) and approve this site. Your API key is filled in for you.', 'mightyshare' ); ?></p>
+			<p class="mightyshare-description description"><?php esc_html_e( 'Or paste your API key:', 'mightyshare' ); ?></p>
+		<?php } ?>
 		<input type="<?php echo esc_attr( $field_type ); ?>" name="mightyshare[mightyshare_api_key]" class="regular-text	mightyshare_api_key_field" placeholder="<?php echo esc_attr( __( 'API KEY', 'mightyshare' ) ); ?>" id="mightyshare_api_key_field" value="<?php echo esc_attr( $value_api_key ); ?>"> <label><input type="checkbox" onclick="toggleApiKeyFieldMask('.mightyshare_api_key_field')" <?php echo esc_attr( $checked ); ?>> <?php echo wp_kses_post( __( 'Display API Key', 'mightyshare' ) ); ?></label>
 		<p class="mightyshare-description description">
 			<?php if( ! empty( $options ) && ! empty( $options['plan_response_type'] ) && ! empty( $options['plan_message'] ) ) { ?>
 				<span id="mightyshare-api-key-status" class="loaded <?php echo esc_attr( $options['plan_response_type'] ); ?>"><?php echo esc_html( $options['plan_message'] ); ?>
 				</span>
 			<?php }; ?>
-			<?php echo wp_kses_post( __( 'Your MightyShare.io API Key. <br /><small>Don\'t have an API Key? <a href="https://mightyshare.io/register" rel="nofollow noopener" target="_blank">Get a free MightyShare API Key</a></small>', 'mightyshare' ) ); ?></p>
+			<?php if ( '' === trim( $value_api_key ) ) { ?>
+				<?php echo wp_kses_post( __( 'Your MightyShare.io API Key. <br /><small>Don\'t have an API Key? <a href="https://mightyshare.io/register" rel="nofollow noopener" target="_blank">Get a free MightyShare API Key</a></small>', 'mightyshare' ) ); ?>
+			<?php } else { ?>
+				<?php esc_html_e( 'Your MightyShare.io API Key.', 'mightyshare' ); ?>
+				<br /><small><a href="<?php echo esc_url( $connect_url ); ?>"><?php esc_html_e( 'Reconnect with MightyShare', 'mightyshare' ); ?></a></small>
+			<?php } ?>
+			</p>
 		<?php
 	}
 

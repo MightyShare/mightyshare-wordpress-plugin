@@ -5,7 +5,7 @@ Tags: Social Preview, Open Graph, Social Media, Twitter Card, Open Graph Images
 Requires at least: 6.0
 Tested up to: 7.1
 Requires PHP: 7.4
-Stable tag: 1.5.1
+Stable tag: 1.6.0
 License: GPLv3
 License URI: http://www.gnu.org/licenses/gpl.html
 
@@ -27,6 +27,7 @@ MightyShare sends your post's title, featured image, and post meta data to our s
 ### FEATURES
 
 * **Automatically generate social share images** for posts and pages!
+* Connect your account in one click, no API key to copy and paste.
 * Images are pre-generated when you publish, so crawlers get an instant cached image.
 * Perfect solution for branded social images.
 * Robust customization.
@@ -51,14 +52,18 @@ To install this plugin:
 1. Download the plugin
 2. Upload the plugin to the wp-content/plugins directory,
 3. Go to "plugins" in your WordPress admin, then click activate.
-4. Add a MightyShare.io API key into settings > MightyShare.
+4. Go to Settings > MightyShare and click "Connect with MightyShare" (or paste an API key).
 5. Ensure each post type is enabled you want MightyShare enabled on.
 
 == Frequently Asked Questions ==
 
 =Is MightyShare free?=
 
-Yes! You can use MightyShare for free using our free account allowing you 50 renders a month. [Paid plans](https://mightyshare.io/pricing/) start at $5 that allow you to generate hundreds of social images.
+Yes! You can use MightyShare for free using our free account allowing you 50 renders every 30 days. [Paid plans](https://mightyshare.io/pricing/) start at $9 a month and allow you to generate hundreds of social images.
+
+=How do I connect my MightyShare account?=
+
+Go to Settings > MightyShare and click "Connect with MightyShare". Sign in (or create a free account) on mightyshare.io, approve your site, and you're sent back with your API key filled in. You can still paste an API key by hand instead.
 
 =How does image generation work?=
 
@@ -85,13 +90,28 @@ Go to Settings > MightyShare and click "Pre-generate All Images", or run `wp mig
 This plugin connects to MightyShare (https://mightyshare.io) to create social share images.
 
 * **Image rendering** (`api.mightyshare.io`): the plugin builds a signed image URL that contains your public API key ID, the page URL, and the post title, excerpt (if subheadings are enabled), featured image URL, logo URL, colors, font and template you configured. That URL is placed in your page's meta tags; social networks (and the plugin's pre-generation, when you publish) request it, and MightyShare renders the image. If you pick the "screenshot" template, MightyShare loads your public page to capture it.
+* **Account connect** (`mightyshare.io/connect`, `mightyshare.io/api/connect/exchange`): when you click "Connect with MightyShare", your browser opens mightyshare.io with your site URL. After you approve, the plugin sends the one-time code it got back, plus your site URL, to fetch your API key, account email and plan.
 * **API key check** (`api.mightyshare.io/validate-key/`): when you save your API key, and at most every 12 hours while you view the settings page, the plugin sends the key to look up your plan.
 * **Template list** (`mightyshare.io/api/templates`): fetched in the WordPress admin and cached for 12 hours (retried after an hour if it fails) to show the current templates. Only WordPress's standard request headers (which include your site URL) are sent.
 * **Template previews** (`api.mightyshare.io/template/preview/`): sample images shown in the admin template picker, loaded by your browser.
 
 [Privacy Policy](https://mightyshare.io/privacy-policy/)
 
+== Screenshots ==
+
+1. Publish as usual. Every post gets an on-brand share image.
+2. No image means a blank box. MightyShare fixes that.
+3. 20+ templates with your logo, colors and fonts.
+4. See the image before you publish. Regenerate in one click.
+5. Works with the SEO plugin you already use.
+6. Generate images for every old post in one go (Settings → MightyShare or `wp mightyshare prewarm`).
+7. Shelf Appeal adds each WooCommerce product's rating and review count.
+8. Pick the post types and pages. Start free with 50 renders every 30 days.
+
 == Changelog ==
+
+= 1.6.0 =
+* New: "Connect with MightyShare" button. Sign in, approve your site, and the API key is saved for you. Pasting a key still works.
 
 = 1.5.1 =
 * Security: template values are now saved as slugs and the admin preview no longer builds HTML from them, closing a stored XSS that a Contributor could trigger for an admin.
